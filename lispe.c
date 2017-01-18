@@ -52,11 +52,15 @@ static jmp_buf buf;
 static SEXPR s_true_atom;
 static SEXPR s_nil_atom;
 
-/* (var, val)* on the global environment */
+/* global environment */
 static SEXPR s_env;
 
-/* (var, val)* on the current computation */
-static SEXPR s_computation;
+/* current computation stack */
+static SEXPR s_stack;
+
+/* protected current cons computation */
+static SEXPR s_cons_car;
+static SEXPR s_cons_cdr;
 
 enum { NCELL = 100 };
 static struct cell cells[NCELL];
@@ -143,7 +147,7 @@ static int pop_free_cell()
 	int i;
 
 	if (p_null(s_free_cells)) {
-		// gc();
+		gc();
 		if (p_null(s_free_cells)) {
 			printf("lisep: No more free cells.\n");
 			exit(EXIT_FAILURE);
@@ -161,10 +165,32 @@ static SEXPR p_cons(SEXPR first, SEXPR rest)
 {
 	int i;
 	
+	s_cons_car = first;
+	s_cons_cdr = rest;
+
 	i = pop_free_cell();
 	cells[i].car = first;
 	cells[i].cdr = rest;
+
+	s_cons_car = s_nil_atom;
+	s_cons_cdr = s_nil_atom;
+
 	return make_cons(i);
+}
+
+/* Protect expression form gc by pushin it to s_stack.
+ * Returns e. */
+static SEXPR push(SEXPR e)
+{
+	s_stack = p_cons(e, s_stack);
+	return e;
+}
+
+/* Pop last expression from stack. */
+static void pop(void)
+{
+	assert(!p_null(s_stack));
+	s_stack = p_cdr(s_stack);
 }
 
 struct builtin {
@@ -662,14 +688,22 @@ static SEXPR eq(SEXPR e, SEXPR a)
 
 static SEXPR label(SEXPR e, SEXPR a)
 {
-	SEXPR name, proc, args;
+	SEXPR name, proc, args, r;
 
 	name = p_car(e);
 	if (!p_symbol(name))
 		throw_err();
+	proc = push(p_eval(p_car(p_cdr(e)), a));
+	args = push(p_evlis(p_cdr(p_cdr(e)), a));
+	a = push(p_add(name, proc, a)); 
+	r = p_apply(proc, args, a); 
+	pop(); pop(); pop();
+	return r;
+	/*
 	proc = p_eval(p_car(p_cdr(e)), a);
 	args = p_evlis(p_cdr(p_cdr(e)), a);
 	return p_apply(proc, args, p_add(name, proc, a)); 
+	*/
 }
 
 static SEXPR lambda(SEXPR e, SEXPR a)
@@ -742,7 +776,7 @@ static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 {
 	if (p_null(x)) {
 		return a;
-	} else {
+	} else {	
 		return p_cons(
 			p_cons(p_car(x), p_car(y)),
 			p_pairlis(p_cdr(x), p_cdr(y), a));
@@ -890,13 +924,17 @@ static SEXPR extend_environment(SEXPR vars, SEXPR vals, SEXPR base_env)
 
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 {
+	SEXPR e1, e2, r;
+
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
 		return apply_builtin_function(sexpr_index(fn), x, a);
 	case SEXPR_PROCEDURE:
-		return p_eval(
-			p_car(cells[sexpr_index(fn)].cdr),
-			p_pairlis(cells[sexpr_index(fn)].car, x, a));
+		e1 = p_car(cells[sexpr_index(fn)].cdr);
+		e2 = push(p_pairlis(cells[sexpr_index(fn)].car, x, a));
+		r = p_eval(e1, e2);
+		pop();
+		return r;
 	default:
 		throw_err();
 	}
@@ -904,7 +942,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 
 static SEXPR p_eval(SEXPR e, SEXPR a)
 {
-	SEXPR c;
+	SEXPR c, e1;
 
 	switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
@@ -915,7 +953,23 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			c = p_assoc(e, s_env);
 		}
 		return p_cdr(c);
-	case SEXPR_CONS:	
+	case SEXPR_CONS:
+		push(e);
+		push(a);
+		c = p_eval(p_car(e), a);
+		push(c);
+		if (sexpr_type(c) == SEXPR_BUILTIN_SPECIAL_FORM) {
+			c = apply_builtin_special_form(
+				sexpr_index(c),
+				p_cdr(e), a);
+		} else {
+			e1 = push(p_evlis(p_cdr(e), a));
+			c = p_apply(c, e1, a);
+			pop();
+		}
+		pop(); pop(); pop();
+		return c;
+		/*
 		c = p_eval(p_car(e), a);
 		if (sexpr_type(c) == SEXPR_BUILTIN_SPECIAL_FORM) {
 			return apply_builtin_special_form(
@@ -924,6 +978,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		} else {
 			return p_apply(c, p_evlis(p_cdr(e), a), a);
 		}
+		*/
 	default:
 		throw_err();
 	}
@@ -1053,13 +1108,16 @@ static void gc(void)
 	struct cell *pcell;
 
 	gc_mark(s_env);
+	gc_mark(s_stack);
+	gc_mark(s_cons_car);
+	gc_mark(s_cons_cdr);
 
-	/* Return to s_free_cells those marked as CELL_MARK_ASSIGNED */
+	/* Return to s_free_cells those marked as CELL_MARK_CREATED */
 	used = freed = 0;
 	for (i = 0; i < NCELL; i++) {
 		if (cells[i].mark == CELL_MARK_CREATED) {
 			freed++;
-			cells[i].mark = 0;
+			cells[i].mark = CELL_MARK_FREE;
 			cells[i].car = s_nil_atom;
 			if (p_null(s_free_cells)) {
 				cells[i].cdr = s_nil_atom;
@@ -1070,7 +1128,7 @@ static void gc(void)
 			s_free_cells = make_cons(i);
 		} else if (cells[i].mark == CELL_MARK_USED) {
 			used++;
-			cells[i].mark = 1;
+			cells[i].mark = CELL_MARK_CREATED;
 		}
 	}
 
@@ -1094,6 +1152,9 @@ int main(int argc, char* argv[])
 	int i;
 
 	make_nil_atom();
+	s_stack = s_nil_atom;
+	s_cons_car = s_nil_atom;
+	s_cons_cdr = s_nil_atom;
 
 	/* link cells for the free cells list */
 	cells[NCELL - 1].car = s_nil_atom;
@@ -1115,8 +1176,11 @@ int main(int argc, char* argv[])
 			println(p_eval(read(), s_nil_atom));
 		} else {
 			printf("** ERROR **\n");
+			s_stack = s_nil_atom;
+			s_cons_car = s_nil_atom;
+			s_cons_cdr = s_nil_atom;
 		}
-		gc();
+		// gc();
 	}
 
 	return 0;
