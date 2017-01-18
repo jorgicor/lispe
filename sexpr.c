@@ -1,21 +1,22 @@
 #include "common.h"
+#include <stddef.h>
 
-int get_sexpr_type(SEXPR e)
+int sexpr_type(SEXPR e)
 {
 	return e.type;
 }
 
-int get_sexpr_index(SEXPR e)
+int sexpr_index(SEXPR e)
 {
 	return e.data.index;
 }
 
-LITERAL get_sexpr_literal(SEXPR e)
+LITERAL sexpr_literal(SEXPR e)
 {
 	return e.data.literal;
 }
 
-float get_sexpr_number(SEXPR e)
+float sexpr_number(SEXPR e)
 {
 	return e.data.number;
 }
@@ -35,6 +36,7 @@ SEXPR make_literal(LITERAL lit)
 
 	e.type = SEXPR_LITERAL;
 	e.data.literal = lit;
+	gc_mark_literal_assigned(lit);
 	return e;
 }
 

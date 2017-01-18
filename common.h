@@ -5,15 +5,11 @@
 
 #define USE_TREE 0
 
-#if USE_TREE
 typedef struct literal * LITERAL;
-#else
-typedef char * LITERAL;
-#endif
 
 /* literal will be 4 bytes on 32 bit systems, and 8 on 64 bit systems! */
 struct sexpr {
-	int type;
+	signed char type;
 	union {
 		LITERAL literal;
 		float number;
@@ -41,15 +37,18 @@ SEXPR make_builtin_function(int i);
 SEXPR make_builtin_special_form(int i);
 SEXPR make_procedure(int args_n_body);
 
-int get_sexpr_type(SEXPR e);
-int get_sexpr_index(SEXPR e);
-LITERAL get_sexpr_literal(SEXPR e);
-float get_sexpr_number(SEXPR e);
+int sexpr_type(SEXPR e);
+int sexpr_index(SEXPR e);
+LITERAL sexpr_literal(SEXPR e);
+float sexpr_number(SEXPR e);
 
 /* symtab */
 
 LITERAL new_literal(const char *name, int len);
 const char *literal_name(LITERAL lit);
 int literals_equal(LITERAL lita, LITERAL litb);
+void gc_literals(void);
+void gc_mark_literal_assigned(LITERAL lit);
+void gc_mark_literal_used(LITERAL lit);
 
 #endif
