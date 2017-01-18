@@ -47,14 +47,6 @@ SEXPR make_number(float n)
 	return e;
 }
 
-SEXPR make_undefined()
-{
-	SEXPR e;
-
-	e.type = SEXPR_UNDEFINED;
-	return e;
-}
-
 SEXPR make_builtin_function(int i)
 {
 	SEXPR e;

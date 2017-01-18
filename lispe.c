@@ -532,19 +532,16 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	SEXPR bind;
 
 	var = p_car(sexpr);
-	println(var);
 	if (!p_symbol(var))
 		throw_err();
 
 	val = p_eval(p_car(p_cdr(sexpr)), a);
-	println(val);
 	bind = p_assoc(var, a);
 	if (p_null(bind)) {
 		bind = p_assoc(var, s_env);
 		if (p_null(bind)) {
 			bind = p_cons(var, val);
 			s_env = p_cons(bind, s_env);
-			println(s_env);
 		} else {
 			p_set_cdr(bind, val);
 		}
@@ -552,14 +549,6 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 		p_set_cdr(bind, val);
 	}
 	return val;
-
-	/*
-	bind = p_assoc(var, a);
-	if (is_nil(bind)) {
-		p_cons(var, val);
-	set_literal_value(get_sexpr_literal(a), b);
-	return b;
-	*/
 }
 
 static SEXPR cons(SEXPR e, SEXPR a)
@@ -637,11 +626,12 @@ static int p_eq(SEXPR x, SEXPR y)
 	if (p_null(x) && p_null(y)) {
 		return 1;
 	} else if (p_symbol(x) && p_symbol(y)) {
-		return get_sexpr_literal(x) == get_sexpr_literal(y);
+		return literals_equal(get_sexpr_literal(x),
+				      get_sexpr_literal(y));
 	} else if (p_number(x) && p_number(y)) {
 		return get_sexpr_number(x) == get_sexpr_number(y);
 	} else {
-		longjmp(buf, 1);
+		throw_err();
 	}
 }
 
@@ -811,8 +801,8 @@ static SEXPR lookup_variable_value(SEXPR var, SEXPR env)
 		env = enclosing_environment(env);
 	}
 
-	return make_undefined();
-
+	throw_err();
+	return s_nil_atom;
 }
 
 static void set_variable_value(SEXPR var, SEXPR val, SEXPR env)
@@ -891,13 +881,11 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 			x,
 			a);
 	case SEXPR_PROCEDURE:
-		// println(p_pairlis(cells[get_sexpr_index(fn)].car, x, a));
 		return p_eval(
 			p_car(cells[get_sexpr_index(fn)].cdr),
 			p_pairlis(cells[get_sexpr_index(fn)].car, x, a));
 	default:
-		/* error */
-		return make_undefined();
+		throw_err();
 	}
 }
 
@@ -933,9 +921,6 @@ static void print(SEXPR sexpr)
 	int i;
 
 	switch (get_sexpr_type(sexpr)) {
-	case SEXPR_UNDEFINED:
-		printf("undefined");
-		break;
 	case SEXPR_CONS:
 		i = get_sexpr_index(sexpr);
 		printf("(");

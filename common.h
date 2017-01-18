@@ -3,13 +3,19 @@
 
 #define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
 
-typedef struct literal * LITERAL;
+#define USE_TREE 0
 
+#if USE_TREE
+typedef struct literal * LITERAL;
+#else
+typedef char * LITERAL;
+#endif
+
+/* literal will be 4 bytes on 32 bit systems, and 8 on 64 bit systems! */
 struct sexpr {
 	int type;
 	union {
-		LITERAL literal;	/* ! This will be 8 bytes on 64-bits
-					 * systems */
+		LITERAL literal;
 		float number;
 		int index;
 	} data;
@@ -18,7 +24,6 @@ struct sexpr {
 typedef struct sexpr SEXPR;
 
 enum {
-	SEXPR_UNDEFINED,
 	SEXPR_CONS,
 	SEXPR_LITERAL,
 	SEXPR_NUMBER,
@@ -29,7 +34,6 @@ enum {
 
 /* sexpr.c */
 
-SEXPR make_undefined();
 SEXPR make_cons(int i);
 SEXPR make_literal(LITERAL lit);
 SEXPR make_number(float n);
@@ -45,8 +49,7 @@ float get_sexpr_number(SEXPR e);
 /* symtab */
 
 LITERAL new_literal(const char *name, int len);
-SEXPR literal_value(LITERAL lit);
-void set_literal_value(LITERAL lit, SEXPR val);
 const char *literal_name(LITERAL lit);
+int literals_equal(LITERAL lita, LITERAL litb);
 
 #endif
