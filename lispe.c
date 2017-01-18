@@ -299,7 +299,7 @@ again:	if (t->peekc >= 0) {
 	} else if (isalpha(c)) {
 		t->tok.type = T_ATOM;
 		i = 0;
-		while (isalpha(c)) {
+		while (isalnum(c)) {
 			if (i < MAX_NAME) {
 				t->tok.value.atom.name[i++] = c;
 			}
@@ -448,20 +448,21 @@ static SEXPR parse_list(struct parser *p, int *iserror)
 	}
 
 	car = parse_sexpr(p, iserror);
-	if (*iserror) {
+	if (*iserror)
 		goto error;
-	}
 
+	push(car);
 	if (tok->type == '.') {
 		pop_token(p->tokenizer);
 		cdr = parse_sexpr(p, iserror);
 	} else {
 		cdr = parse_list(p, iserror);
 	}
+	pop();
 
-	if (*iserror) {
+	if (*iserror)
 		goto error;
-	}		
+
 	return p_cons(car, cdr);
 
 error:	*iserror = 1;
@@ -470,17 +471,16 @@ error:	*iserror = 1;
 
 static SEXPR parse_quote(struct parser *p, int *iserror)
 {
-	SEXPR sexpr;
+	SEXPR sexpr, e1;
 
 	sexpr = parse_sexpr(p, iserror);
 	if (*iserror)
-		goto error;
+		return s_nil_atom;
 
-	return p_cons(make_literal(new_literal("quote", 5)),
-			p_cons(sexpr, s_nil_atom));
-
-error:	*iserror = 1;
-	return s_nil_atom;
+	sexpr = push(p_cons(sexpr, s_nil_atom));
+	sexpr = p_cons(make_literal(new_literal("quote", 5)), sexpr);
+	pop();
+	return sexpr;
 }
 
 static SEXPR parse_sexpr(struct parser *p, int *iserror)
@@ -491,8 +491,7 @@ static SEXPR parse_sexpr(struct parser *p, int *iserror)
 
 	tok = peek_token(p->tokenizer);
 	if (tok->type == T_ATOM) {	
-		lit = new_literal(tok->value.atom.name,
-		    tok->value.atom.len);
+		lit = new_literal(tok->value.atom.name, tok->value.atom.len);
 		sexpr = make_literal(lit);
 		if (p->sp > 0) {
 			pop_token(p->tokenizer);
@@ -748,12 +747,15 @@ static SEXPR equal(SEXPR e, SEXPR a)
  */
 static SEXPR p_evlis(SEXPR m, SEXPR a)
 {
+	SEXPR e1;
+
 	if (p_null(m)) {
 		return m;
 	} else {
-		return p_cons(
-			p_eval(p_car(m), a),
-			p_evlis(p_cdr(m), a));
+		e1 = push(p_eval(p_car(m), a));
+		e1 = p_cons(e1, p_evlis(p_cdr(m), a));
+		pop();
+		return e1;
 	}
 }
 
@@ -926,6 +928,14 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 {
 	SEXPR e1, e2, r;
 
+#if 0
+	printf("apply fn: ");
+	println(fn);
+	printf("x: ");
+	println(x);
+	printf("a: ");
+	println(a);
+#endif
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
 		return apply_builtin_function(sexpr_index(fn), x, a);
@@ -952,8 +962,13 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		if (p_null(c)) {
 			c = p_assoc(e, s_env);
 		}
-		return p_cdr(c);
+		c = p_cdr(c);
+		return c;
 	case SEXPR_CONS:
+		printf("eval ");
+		println(e);
+		printf("a: ");
+		println(a);
 		push(e);
 		push(a);
 		c = p_eval(p_car(e), a);
@@ -969,16 +984,6 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		}
 		pop(); pop(); pop();
 		return c;
-		/*
-		c = p_eval(p_car(e), a);
-		if (sexpr_type(c) == SEXPR_BUILTIN_SPECIAL_FORM) {
-			return apply_builtin_special_form(
-				sexpr_index(c),
-				p_cdr(e), a);
-		} else {
-			return p_apply(c, p_evlis(p_cdr(e), a), a);
-		}
-		*/
 	default:
 		throw_err();
 	}
@@ -993,8 +998,18 @@ static void print(SEXPR sexpr)
 		i = sexpr_index(sexpr);
 		printf("(");
 		print(cells[i].car);
-		printf(" . ");
-		print(cells[i].cdr);
+		while (!p_null(cells[i].cdr)) {
+			sexpr = cells[i].cdr;
+			if (sexpr_type(sexpr) == SEXPR_CONS) {
+				i = sexpr_index(sexpr);
+				printf(" ");
+				print(cells[i].car);
+			} else {
+				printf(" . ");
+				print(sexpr);
+				break;
+			}
+		}
 		printf(")");
 		break;
 	case SEXPR_LITERAL:
