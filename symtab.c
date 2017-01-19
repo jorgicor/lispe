@@ -119,6 +119,31 @@ void gc_mark_literal_used(LITERAL lit)
 
 void gc_literals(void)
 {
+	struct literal *pnode, *prev, *q;
+	int freed;
+
+	freed = 0;
+	prev = NULL;
+	pnode = s_list;
+	while (pnode) {
+		if (literal_mark(pnode) == LITERAL_USED) {
+			mark_literal(pnode, LITERAL_CREATED);
+			prev = pnode;
+			pnode = pnode->next;
+		} else {
+			freed++;
+			printf("freed (%s)\n", literal_name(pnode));
+			if (prev == NULL)
+				s_list = pnode->next;
+			else
+				prev->next = pnode->next;
+			q = pnode->next;
+			free(pnode);
+			pnode = q;
+		}
+	}
+
+#if 0
 	struct literal **pplit, *pnext;
 	int freed;
 
@@ -131,11 +156,13 @@ void gc_literals(void)
 		case LITERAL_CREATED:
 			freed++;
 			pnext = (*pplit)->next;
+			printf("freed (%s)\n", literal_name(*pplit));
 			free(*pplit);
 			*pplit = pnext;
 			break;
 		}
 	}
+#endif
 
 	printf("[freed literals %d]\n", freed);
 }
@@ -146,7 +173,7 @@ LITERAL new_literal(const char *s, int len)
 
 	plit = malloc(sizeof(*plit) + 1 + len + 1);
 	if (plit == NULL) {
-		fprintf(stderr, "lispe: Out of memory!\n");
+		fprintf(stderr, "lispe: out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 

@@ -958,6 +958,27 @@ static SEXPR equal(SEXPR e, SEXPR a)
  */
 static SEXPR p_evlis(SEXPR m, SEXPR a)
 {
+	SEXPR head, node, node2;
+	
+	if (p_null(m))
+		return m;
+
+	head = push(p_cons(p_eval(p_car(m), a), s_nil_atom));
+
+	node = head;
+	m = p_cdr(m);
+	while (!p_null(m)) {
+		node2 = p_cons(p_eval(p_car(m), a), s_nil_atom);
+		p_set_cdr(node, node2);
+		node = node2;
+		m = p_cdr(m);
+	}
+	pop();
+	return head;
+
+
+#if 0
+	/* recursive version */
 	SEXPR e1;
 
 	if (p_null(m)) {
@@ -968,6 +989,7 @@ static SEXPR p_evlis(SEXPR m, SEXPR a)
 		pop();
 		return e1;
 	}
+#endif
 }
 
 /* eval COND */
@@ -987,6 +1009,28 @@ static SEXPR p_evcon(SEXPR c, SEXPR a)
  */
 static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 {
+	SEXPR head, node, node2;
+
+	if (p_null(x))
+		return a;
+
+	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
+
+	node = head;
+	x = p_cdr(x);
+	y = p_cdr(y);
+	while (!p_null(x)) {
+		node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
+		p_set_cdr(node, node2);
+		node = node2;
+		x = p_cdr(x);
+		y = p_cdr(y);
+	}
+	pop();
+	return head;
+
+#if 0
+	/* recursive version */
 	if (p_null(x)) {
 		return a;
 	} else {	
@@ -995,6 +1039,7 @@ static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 		pop();
 		return a;
 	}
+#endif
 }
 
 /* a is an association list such as the one produced by p_pairlis;
@@ -1182,10 +1227,10 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		c = p_cdr(c);
 		return c;
 	case SEXPR_CONS:
-		printf("eval ");
-		println(e);
-		printf("a: ");
-		println(a);
+		//printf("eval ");
+		// println(e);
+		//printf("a: ");
+		// println(a);
 		c = push(p_eval(p_car(e), a));
 		switch (sexpr_type(c)) {
 		case SEXPR_BUILTIN_SPECIAL:
