@@ -58,20 +58,29 @@ SEXPR make_builtin_function(int i)
 	return e;
 }
 
-SEXPR make_builtin_special_form(int i)
+SEXPR make_builtin_special(int i)
 {
 	SEXPR e;
 
-	e.type = SEXPR_BUILTIN_SPECIAL_FORM;
+	e.type = SEXPR_BUILTIN_SPECIAL;
 	e.data.index = i;
 	return e;
 }
 
-SEXPR make_procedure(int args_n_body)
+SEXPR make_function(int args_n_body)
 {
 	SEXPR e;
 
-	e.type = SEXPR_PROCEDURE;
+	e.type = SEXPR_FUNCTION;
+	e.data.index = args_n_body;
+	return e;
+}
+
+SEXPR make_special(int args_n_body)
+{
+	SEXPR e;
+
+	e.type = SEXPR_SPECIAL;
 	e.data.index = args_n_body;
 	return e;
 }

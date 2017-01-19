@@ -24,8 +24,9 @@ enum {
 	SEXPR_LITERAL,
 	SEXPR_NUMBER,
 	SEXPR_BUILTIN_FUNCTION,
-	SEXPR_BUILTIN_SPECIAL_FORM,
-	SEXPR_PROCEDURE,
+	SEXPR_BUILTIN_SPECIAL,
+	SEXPR_FUNCTION,
+	SEXPR_SPECIAL,
 };
 
 /* sexpr.c */
@@ -34,8 +35,9 @@ SEXPR make_cons(int i);
 SEXPR make_literal(LITERAL lit);
 SEXPR make_number(float n);
 SEXPR make_builtin_function(int i);
-SEXPR make_builtin_special_form(int i);
-SEXPR make_procedure(int args_n_body);
+SEXPR make_builtin_special(int i);
+SEXPR make_function(int args_n_body);
+SEXPR make_special(int args_n_body);
 
 int sexpr_type(SEXPR e);
 int sexpr_index(SEXPR e);

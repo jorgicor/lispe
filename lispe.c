@@ -26,10 +26,17 @@ static SEXPR car(SEXPR e, SEXPR a);
 static SEXPR cdr(SEXPR e, SEXPR a);
 static SEXPR quote(SEXPR e, SEXPR a);
 static SEXPR cond(SEXPR e, SEXPR a);
+static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR p_evcon(SEXPR c, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
+static SEXPR special(SEXPR e, SEXPR a);
+static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR label(SEXPR e, SEXPR a);
 static SEXPR setq(SEXPR sexpr, SEXPR a);
+static SEXPR lessp(SEXPR sexpr, SEXPR a);
+static SEXPR greaterp(SEXPR sexpr, SEXPR a);
+static SEXPR number(SEXPR e, SEXPR a);
+static SEXPR null(SEXPR e, SEXPR a);
 static int p_null(SEXPR e);
 static int p_atom(SEXPR x);
 static int p_number(SEXPR e);
@@ -143,7 +150,6 @@ static SEXPR p_car(SEXPR e)
 
 	switch (sexpr_type(e)) {
 	case SEXPR_CONS:
-	// case SEXPR_PROCEDURE:
 		cellp(sexpr_index(e), pcell);
 		return pcell->car;
 	default:
@@ -157,7 +163,6 @@ static SEXPR p_cdr(SEXPR e)
 
 	switch (sexpr_type(e)) {
 	case SEXPR_CONS:
-	// case SEXPR_PROCEDURE:
 		cellp(sexpr_index(e), pcell);
 		return pcell->cdr;
 	default:
@@ -245,23 +250,31 @@ struct builtin {
 };
 
 static struct builtin builtin_functions[] = {
-	{ "atom?", &atom },
 	{ "car",  &car },
 	{ "cdr", &cdr },
 	{ "cons", &cons },
+	{ "atom?", &atom },
 	{ "eq?", &eq },
 	{ "equal?", &equal },
+	{ "number?", &number },
+	{ "null?", &null },
 	{ "+", &plus },
 	{ "-", &difference},
 	{ "*", &times },
 	{ "/", &quotient },
+	/* modulo and remainder */
+	{ "<", &lessp },
+	{ ">", &greaterp },
 };
 
-static struct builtin builtin_special_forms[] = {
+static struct builtin builtin_specials[] = {
 	{ "quote", &quote },
 	{ "cond", &cond },
 	{ "label", &label },
 	{ "lambda", &lambda },
+	{ "special", &special },
+	{ "eval", &eval },
+	{ "body", &body },
 	{ "setq!", &setq },
 };
 
@@ -270,9 +283,9 @@ static SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
 	return builtin_functions[i].fun(args, a);
 }
 
-static SEXPR apply_builtin_special_form(int i, SEXPR args, SEXPR a)
+static SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
 {
-	return builtin_special_forms[i].fun(args, a);
+	return builtin_specials[i].fun(args, a);
 }
 
 struct input_channel {
@@ -634,19 +647,22 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	if (!p_symbol(var))
 		throw_err();
 
-	val = p_eval(p_car(p_cdr(sexpr)), a);
+	val = push(p_eval(p_car(p_cdr(sexpr)), a));
 	bind = p_assoc(var, a);
 	if (p_null(bind)) {
 		bind = p_assoc(var, s_env);
 		if (p_null(bind)) {
-			bind = p_cons(var, val);
+			bind = push(p_cons(var, val));
 			s_env = p_cons(bind, s_env);
+			pop();
 		} else {
 			p_set_cdr(bind, val);
 		}
 	} else {
 		p_set_cdr(bind, val);
 	}
+	pop();
+
 	return val;
 }
 
@@ -667,6 +683,50 @@ static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
 		e = p_cdr(e);
 	}
 	return make_number(n);
+}
+
+static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
+{
+	int b;
+	float n, n2;
+
+	e = p_evlis(e, a);
+	if (p_null(e) || !p_number(p_car(e)))
+		throw_err();
+
+	n = sexpr_number(p_car(e));
+	e = p_cdr(e);
+	while (!p_null(e)) {
+		if (!p_number(p_car(e)))
+			throw_err();
+		n2 = sexpr_number(p_car(e));
+		if (!fun(n, n2))
+			return s_nil_atom;
+		n = n2;
+		e = p_cdr(e);
+	}
+
+	return s_true_atom;
+}
+
+static int lessp_fun(float a, float b)
+{
+	return a < b;
+}
+
+static SEXPR lessp(SEXPR e, SEXPR a)
+{
+	return logic(e, a, lessp_fun);
+}
+
+static int greaterp_fun(float a, float b)
+{
+	return a > b;
+}
+
+static SEXPR greaterp(SEXPR e, SEXPR a)
+{
+	return logic(e, a, greaterp_fun);
 }
 
 static float plus_fun(float a, float b)
@@ -764,6 +824,24 @@ static SEXPR atom(SEXPR e, SEXPR a)
 	}
 }
 
+static SEXPR number(SEXPR e, SEXPR a)
+{
+	if (p_number(p_car(e))) {
+		return s_true_atom;
+	} else {
+		return s_nil_atom;
+	}
+}
+
+static SEXPR null(SEXPR e, SEXPR a)
+{
+	if (p_null(p_car(e))) {
+		return s_true_atom;
+	} else {
+		return s_nil_atom;
+	}
+}
+
 static int p_eq(SEXPR x, SEXPR y)
 {
 	if (p_null(x) && p_null(y)) {
@@ -808,7 +886,35 @@ static SEXPR label(SEXPR e, SEXPR a)
 
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
-	return make_procedure(sexpr_index(e));
+	return make_function(sexpr_index(e));
+}
+
+static SEXPR special(SEXPR e, SEXPR a)
+{
+	return make_special(sexpr_index(e));
+}
+
+static SEXPR body(SEXPR e, SEXPR a)
+{
+	struct cell *pcell;
+
+	/* TODO: admit any number of arguments */
+	e = push(p_evlis(e, a));
+	e = p_car(e);
+	switch (sexpr_type(e)) {
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
+		cellp(sexpr_index(e), pcell);
+		e = p_cons(pcell->car, p_car(pcell->cdr));
+		pop();
+		return e;
+	case SEXPR_BUILTIN_FUNCTION:
+	case SEXPR_BUILTIN_SPECIAL:
+		pop();
+		return s_nil_atom;
+	default:
+		throw_err();
+	}
 }
 
 static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
@@ -1040,7 +1146,10 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
 		return apply_builtin_function(sexpr_index(fn), x, a);
-	case SEXPR_PROCEDURE:
+	case SEXPR_BUILTIN_SPECIAL:
+		return apply_builtin_special(sexpr_index(fn), x, a);
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
 		e1 = p_car(cells[sexpr_index(fn)].cdr);
 		e2 = push(p_pairlis(cells[sexpr_index(fn)].car, x, a));
 		r = p_eval(e1, e2);
@@ -1074,11 +1183,12 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		push(a);
 		c = p_eval(p_car(e), a);
 		push(c);
-		if (sexpr_type(c) == SEXPR_BUILTIN_SPECIAL_FORM) {
-			c = apply_builtin_special_form(
-				sexpr_index(c),
-				p_cdr(e), a);
-		} else {
+		switch (sexpr_type(c)) {
+		case SEXPR_BUILTIN_SPECIAL:
+		case SEXPR_SPECIAL:
+			c = p_apply(c, p_cdr(e), a);
+			break;
+		default:
 			e1 = push(p_evlis(p_cdr(e), a));
 			c = p_apply(c, e1, a);
 			pop();
@@ -1088,6 +1198,12 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 	default:
 		throw_err();
 	}
+}
+
+static SEXPR eval(SEXPR e, SEXPR a)
+{
+	e = push(p_eval(p_car(e), a));
+	return p_eval(e, a);
 }
 
 static void print(SEXPR sexpr)
@@ -1123,18 +1239,21 @@ static void print(SEXPR sexpr)
 		printf("{builtin function %s}",
 			builtin_functions[sexpr_index(sexpr)].id);
 		break;
-	case SEXPR_BUILTIN_SPECIAL_FORM:
-		printf("{builtin special form %s}",
-			builtin_special_forms[sexpr_index(sexpr)].id);
+	case SEXPR_BUILTIN_SPECIAL:
+		printf("{builtin special %s}",
+			builtin_specials[sexpr_index(sexpr)].id);
 		break;
-	case SEXPR_PROCEDURE:
-		printf("{lambda}");
+	case SEXPR_FUNCTION:
+		printf("{function}");
 #if 0
 		printf("(lambda ");
 		print(cells[sexpr_index(sexpr)].car);
 		print(cells[sexpr_index(sexpr)].cdr);
 		printf(")");
 #endif
+		break;
+	case SEXPR_SPECIAL:
+		printf("{special}");
 		break;
 	}
 }
@@ -1164,13 +1283,13 @@ static SEXPR install_builtin_functions(SEXPR a)
 	return a;
 }
 
-static SEXPR install_builtin_special_forms(SEXPR a)
+static SEXPR install_builtin_specials(SEXPR a)
 {
 	int i;
 
-	for (i = 0; i < NELEMS(builtin_special_forms); i++) {
-		a = install_builtin(builtin_special_forms[i].id,
-			make_builtin_special_form(i), a);
+	for (i = 0; i < NELEMS(builtin_specials); i++) {
+		a = install_builtin(builtin_specials[i].id,
+			make_builtin_special(i), a);
 	}
 	return a;
 }
@@ -1207,8 +1326,9 @@ static void gc_mark(SEXPR e)
 		break;
 	case SEXPR_CONS:
 	case SEXPR_BUILTIN_FUNCTION:
-	case SEXPR_BUILTIN_SPECIAL_FORM:
-	case SEXPR_PROCEDURE:
+	case SEXPR_BUILTIN_SPECIAL:
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
 		celli = sexpr_index(e);
 		cellp(celli, pcell);
 		if_cell_mark(celli, CELL_CREATED, CELL_USED);
@@ -1301,7 +1421,7 @@ int main(int argc, char* argv[])
 	s_env = s_nil_atom;
 	s_env = install_literals(s_env);
 	s_env = install_builtin_functions(s_env);
-	s_env = install_builtin_special_forms(s_env);
+	s_env = install_builtin_specials(s_env);
 
 	/* REPL */
 	for (;;) {
