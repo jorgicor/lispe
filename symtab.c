@@ -5,9 +5,8 @@
 #include <assert.h>
 
 enum {
-	MARK_UNASSIGNED,
-	MARK_ASSIGNED,
-	MARK_USED,
+	LITERAL_CREATED,
+	LITERAL_USED
 };
 
 #define USE_TREE 0
@@ -113,14 +112,9 @@ static struct literal *s_list;
 
 #define mark_literal(lit, mark) literal_mark(lit) = mark
 
-void gc_mark_literal_assigned(LITERAL lit)
-{
-	mark_literal(lit, MARK_ASSIGNED);
-}
-
 void gc_mark_literal_used(LITERAL lit)
 {
-	mark_literal(lit, MARK_USED);
+	mark_literal(lit, LITERAL_USED);
 }
 
 void gc_literals(void)
@@ -131,10 +125,10 @@ void gc_literals(void)
 	freed = 0;
 	for (pplit = &s_list; *pplit != NULL; pplit = &(*pplit)->next) {
 		switch (literal_mark(*pplit)) {
-		case MARK_USED:
-			mark_literal(*pplit, MARK_ASSIGNED);
+		case LITERAL_USED:
+			mark_literal(*pplit, LITERAL_CREATED);
 			break;
-		case MARK_ASSIGNED:
+		case LITERAL_CREATED:
 			freed++;
 			pnext = (*pplit)->next;
 			free(*pplit);
@@ -159,7 +153,7 @@ LITERAL new_literal(const char *s, int len)
 	memcpy(plit->mark_n_name + 1, s, len);
 	plit->mark_n_name[len + 1] = '\0';
 
-	mark_literal(plit, MARK_UNASSIGNED);
+	mark_literal(plit, LITERAL_CREATED);
 
 	plit->next = s_list;
 	s_list = plit;

@@ -50,7 +50,6 @@ LITERAL new_literal(const char *name, int len);
 const char *literal_name(LITERAL lit);
 int literals_equal(LITERAL lita, LITERAL litb);
 void gc_literals(void);
-void gc_mark_literal_assigned(LITERAL lit);
 void gc_mark_literal_used(LITERAL lit);
 
 #endif

@@ -36,7 +36,6 @@ SEXPR make_literal(LITERAL lit)
 
 	e.type = SEXPR_LITERAL;
 	e.data.literal = lit;
-	gc_mark_literal_assigned(lit);
 	return e;
 }
 
