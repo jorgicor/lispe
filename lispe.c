@@ -43,7 +43,7 @@ static int p_number(SEXPR e);
 static int p_symbol(SEXPR e);
 
 enum {
-	NCELL = 65536,
+	NCELL = 1000,
 };
 
 struct cell {
@@ -216,6 +216,7 @@ static SEXPR p_cons(SEXPR first, SEXPR rest)
 {
 	int i;
 	
+	/* protect */
 	s_cons_car = first;
 	s_cons_cdr = rest;
 
@@ -541,7 +542,7 @@ error:	*iserror = 1;
 
 static SEXPR parse_quote(struct parser *p, int *iserror)
 {
-	SEXPR sexpr, e1;
+	SEXPR sexpr;
 
 	sexpr = parse_sexpr(p, iserror);
 	if (*iserror)
@@ -652,9 +653,8 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	if (p_null(bind)) {
 		bind = p_assoc(var, s_env);
 		if (p_null(bind)) {
-			bind = push(p_cons(var, val));
+			bind = p_cons(var, val);
 			s_env = p_cons(bind, s_env);
-			pop();
 		} else {
 			p_set_cdr(bind, val);
 		}
@@ -668,9 +668,7 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 
 static SEXPR cons(SEXPR e, SEXPR a)
 {
-	return p_cons(
-		p_car(e),
-		p_car(p_cdr(e)));
+	return p_cons(p_car(e), p_car(p_cdr(e)));
 }
 
 static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
@@ -756,7 +754,10 @@ static SEXPR difference(SEXPR e, SEXPR a)
 	if (p_null(p_cdr(e)))
 		return make_number(-n);
 
-	return arith(p_cdr(e), a, n, difference_fun);
+	e = push(p_cdr(e));
+	e = arith(e, a, n, difference_fun);
+	pop();
+	return e;
 }
 
 static float times_fun(float a, float b)
@@ -786,7 +787,10 @@ static SEXPR quotient(SEXPR e, SEXPR a)
 	if (p_null(p_cdr(e)))
 		return make_number(1.0f / n);
 
-	return arith(p_cdr(e), a, n, quotient_fun);
+	e = push(p_cdr(e));
+	e = arith(e, a, n, quotient_fun);
+	pop();
+	return e;
 }
 
 static int p_symbol(SEXPR e)
@@ -986,9 +990,10 @@ static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 	if (p_null(x)) {
 		return a;
 	} else {	
-		return p_cons(
-			p_cons(p_car(x), p_car(y)),
-			p_pairlis(p_cdr(x), p_cdr(y), a));
+		a = push(p_pairlis(p_cdr(x), p_cdr(y), a));
+		a = p_cons(p_cons(p_car(x), p_car(y)), a);
+		pop();
+		return a;
 	}
 }
 
@@ -1134,6 +1139,7 @@ static SEXPR extend_environment(SEXPR vars, SEXPR vals, SEXPR base_env)
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 {
 	SEXPR e1, e2, r;
+	struct cell *pcell;
 
 #if 0
 	printf("apply fn: ");
@@ -1150,8 +1156,9 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 		return apply_builtin_special(sexpr_index(fn), x, a);
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-		e1 = p_car(cells[sexpr_index(fn)].cdr);
-		e2 = push(p_pairlis(cells[sexpr_index(fn)].car, x, a));
+		cellp(sexpr_index(fn), pcell);
+		e1 = p_car(pcell->cdr);
+		e2 = push(p_pairlis(pcell->car, x, a));
 		r = p_eval(e1, e2);
 		pop();
 		return r;
@@ -1179,10 +1186,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		println(e);
 		printf("a: ");
 		println(a);
-		push(e);
-		push(a);
-		c = p_eval(p_car(e), a);
-		push(c);
+		c = push(p_eval(p_car(e), a));
 		switch (sexpr_type(c)) {
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
@@ -1193,7 +1197,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			c = p_apply(c, e1, a);
 			pop();
 		}
-		pop(); pop(); pop();
+		pop();
 		return c;
 	default:
 		throw_err();
@@ -1203,7 +1207,9 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 static SEXPR eval(SEXPR e, SEXPR a)
 {
 	e = push(p_eval(p_car(e), a));
-	return p_eval(e, a);
+	e = p_eval(e, a);
+	pop();
+	return e;
 }
 
 static void print(SEXPR sexpr)
@@ -1264,47 +1270,40 @@ static void println(SEXPR sexpr)
 	printf("\n");
 }
 
-static SEXPR install_builtin(const char *name, SEXPR e, SEXPR a)
+static void install_builtin(const char *name, SEXPR e)
 {
-	LITERAL lit;
+	SEXPR var;
 
-	lit = new_literal(name, strlen(name));
-	return p_add(make_literal(lit), e, a);
+	var = make_literal(new_literal(name, strlen(name)));
+	s_env = p_add(var, e, s_env);
 }
 
-static SEXPR install_builtin_functions(SEXPR a)
+static void install_builtin_functions(void)
 {
 	int i;
 
 	for (i = 0; i < NELEMS(builtin_functions); i++) {
-		a = install_builtin(builtin_functions[i].id,
-			make_builtin_function(i), a);
+		install_builtin(builtin_functions[i].id,
+			make_builtin_function(i));
 	}
-	return a;
 }
 
-static SEXPR install_builtin_specials(SEXPR a)
+static void install_builtin_specials(void)
 {
 	int i;
 
 	for (i = 0; i < NELEMS(builtin_specials); i++) {
-		a = install_builtin(builtin_specials[i].id,
-			make_builtin_special(i), a);
+		install_builtin(builtin_specials[i].id,
+			make_builtin_special(i));
 	}
-	return a;
 }
 
-static SEXPR install_literals(SEXPR a)
+static void install_literals(void)
 {
-	LITERAL lit;
+	s_env = p_add(s_nil_atom, s_nil_atom, s_env);
 
-	a = p_add(s_nil_atom, s_nil_atom, a);
-
-	lit = new_literal("t", 1);
-	s_true_atom = make_literal(lit);
-	a = p_add(s_true_atom, s_true_atom, a);
-
-	return a;
+	s_true_atom = make_literal(new_literal("t", 1));
+	s_env = p_add(s_true_atom, s_true_atom, s_env);
 }
 
 static void make_nil_atom(void)
@@ -1394,6 +1393,7 @@ static void gc(void)
 int main(int argc, char* argv[])
 {
 	int i;
+	SEXPR e;
 
 	printf("lispe minimal lisp 1.0\n\n");
 	printf("[ncells: %d, ncellmarks: %d]\n", NCELL, NCELLMARK);
@@ -1419,20 +1419,23 @@ int main(int argc, char* argv[])
 	s_free_cells = make_cons(0);
 
 	s_env = s_nil_atom;
-	s_env = install_literals(s_env);
-	s_env = install_builtin_functions(s_env);
-	s_env = install_builtin_specials(s_env);
+	install_literals();
+	install_builtin_functions();
+	install_builtin_specials();
 
 	/* REPL */
 	for (;;) {
 		if (!setjmp(buf)) {
-			println(p_eval(read(), s_nil_atom));
+			e = push(read());
+			println(p_eval(e, s_nil_atom));
+			pop();
 		} else {
 			printf("** ERROR **\n");
 			s_stack = s_nil_atom;
 			s_cons_car = s_nil_atom;
 			s_cons_cdr = s_nil_atom;
 		}
+		assert(p_equal(s_stack, s_nil_atom));
 	}
 
 	return 0;
