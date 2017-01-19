@@ -36,15 +36,27 @@ static int p_number(SEXPR e);
 static int p_symbol(SEXPR e);
 
 enum {
-	CELL_MARK_FREE,
-	CELL_MARK_CREATED,
-	CELL_MARK_USED
+	NCELL = 65536,
 };
 
 struct cell {
-	signed char mark;
 	SEXPR car;
 	SEXPR cdr;
+};
+
+static struct cell cells[NCELL];
+
+enum { NCELLMARK = (NCELL / 16) + ((NCELL % 16) ? 1 : 0) };
+
+/* We use 2 bits for each cell, with the values:
+ * CELL_FREE, CELL_CREATED and CELL_USED.
+ */
+static unsigned int s_cellmarks[NCELLMARK];
+
+enum {
+	CELL_FREE,
+	CELL_CREATED,
+	CELL_USED
 };
 
 static jmp_buf buf; 
@@ -61,9 +73,6 @@ static SEXPR s_stack;
 /* protected current cons computation */
 static SEXPR s_cons_car;
 static SEXPR s_cons_cdr;
-
-enum { NCELL = 100 };
-static struct cell cells[NCELL];
 
 #if 0
 static void cellp(int i, struct cell *pcell)
@@ -84,6 +93,43 @@ static void cellp(int i, struct cell *pcell)
 static void throw_err(void)
 {
 	longjmp(buf, 1);
+}
+
+
+/* 'mark must be CELL_FREE, CELL_CREATED or CELL_USED. */
+static void mark_cell(int i, int mark)
+{
+	int w;
+
+	w = i >> 4;
+	assert(w >= 0 && w < NCELLMARK);
+	i = (i & 15) << 1;
+	s_cellmarks[w] = (s_cellmarks[w] & ~(3 << i)) | (mark << i);
+}
+
+/* Returns CELL_FREE, CELL_CREATED or CELL_USED. */
+static int cell_mark(int i)
+{
+	int w;
+
+	w = i >> 4;
+	assert(w >= 0 && w < NCELLMARK);
+	i = (i & 15) << 1;
+	return (s_cellmarks[w] & (3 << i)) >> i;
+}
+
+static void if_cell_mark(int i, int ifmark, int thenmark)
+{
+	int w;
+	unsigned int mask;
+
+	w = i >> 4;
+	assert(w >= 0 && w < NCELLMARK);
+	i = (i & 15) << 1;
+	mask = 3 << i;
+	if ((s_cellmarks[w] & mask) == (ifmark << i)) {
+		s_cellmarks[w] = (s_cellmarks[w] & ~mask) | (thenmark << i);
+	}
 }
 
 static int p_atom(SEXPR x)
@@ -155,7 +201,7 @@ static int pop_free_cell()
 	}
 
 	i = sexpr_index(s_free_cells);
-	cells[i].mark = CELL_MARK_CREATED;
+	mark_cell(i, CELL_CREATED);
 	s_free_cells = p_cdr(s_free_cells);
 	return i;
 }
@@ -199,16 +245,16 @@ struct builtin {
 };
 
 static struct builtin builtin_functions[] = {
-	{ "atom", &atom },
+	{ "atom?", &atom },
 	{ "car",  &car },
 	{ "cdr", &cdr },
 	{ "cons", &cons },
-	{ "difference", &difference},
-	{ "eq", &eq },
-	{ "equal", &equal },
-	{ "plus", &plus },
-	{ "quotient", &quotient },
-	{ "times", &times },
+	{ "eq?", &eq },
+	{ "equal?", &equal },
+	{ "+", &plus },
+	{ "-", &difference},
+	{ "*", &times },
+	{ "/", &quotient },
 };
 
 static struct builtin builtin_special_forms[] = {
@@ -216,7 +262,7 @@ static struct builtin builtin_special_forms[] = {
 	{ "cond", &cond },
 	{ "label", &label },
 	{ "lambda", &lambda },
-	{ "setq", &setq },
+	{ "setq!", &setq },
 };
 
 static SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
@@ -279,6 +325,17 @@ struct tokenizer *tokenize(struct input_channel *ic,
 	return t;
 }
 
+static int is_id_start(int c)
+{
+	return isalpha(c) || (strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
+}
+
+static int is_id_next(int c)
+{
+	return isdigit(c) || isalpha(c) ||
+	       	(strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
+}
+
 struct token *pop_token(struct tokenizer *t)
 {
 	int c;
@@ -296,10 +353,10 @@ again:	if (t->peekc >= 0) {
 		t->tok.type = EOF;
 	} if (c == '(' || c == ')' || c == '.' || c == '\'') {
 		t->tok.type = c;
-	} else if (isalpha(c)) {
+	} else if (is_id_start(c)) {
 		t->tok.type = T_ATOM;
 		i = 0;
-		while (isalnum(c)) {
+		while (is_id_next(c)) {
 			if (i < MAX_NAME) {
 				t->tok.value.atom.name[i++] = c;
 			}
@@ -600,32 +657,76 @@ static SEXPR cons(SEXPR e, SEXPR a)
 		p_car(p_cdr(e)));
 }
 
+static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
+{
+	e = p_evlis(e, a);
+	while (!p_null(e)) {
+		if (!p_number(p_car(e)))
+			throw_err();
+		n = fun(n, sexpr_number(p_car(e)));
+		e = p_cdr(e);
+	}
+	return make_number(n);
+}
+
+static float plus_fun(float a, float b)
+{
+	return a + b;
+}
+
 static SEXPR plus(SEXPR e, SEXPR a)
 {
-	return make_number(
-		sexpr_number(p_car(e)) +
-		sexpr_number(p_car(p_cdr(e))));
+	return arith(e, a, 0, plus_fun);
+}
+
+static float difference_fun(float a, float b)
+{
+	return a - b;
 }
 
 static SEXPR difference(SEXPR e, SEXPR a) 
 {
-	return make_number(
-		sexpr_number(p_car(e)) -
-		sexpr_number(p_car(p_cdr(e))));
+	float n;
+
+	e = p_evlis(e, a);
+	if (p_null(e) || !p_number(p_car(e)))
+		throw_err();
+
+	n = sexpr_number(p_car(e));
+	if (p_null(p_cdr(e)))
+		return make_number(-n);
+
+	return arith(p_cdr(e), a, n, difference_fun);
+}
+
+static float times_fun(float a, float b)
+{
+	return a * b;
 }
 
 static SEXPR times(SEXPR e, SEXPR a)
 {
-	return make_number(
-		sexpr_number(p_car(e)) *
-		sexpr_number(p_car(p_cdr(e))));
+	return arith(e, a, 1, times_fun);
+}
+
+static float quotient_fun(float a, float b)
+{
+	return a / b;
 }
 
 static SEXPR quotient(SEXPR e, SEXPR a)
 {
-	return make_number(
-		sexpr_number(p_car(e)) /
-		sexpr_number(p_car(p_cdr(e))));
+	float n;
+
+	e = p_evlis(e, a);
+	if (p_null(e) || !p_number(p_car(e)))
+		throw_err();
+
+	n = sexpr_number(p_car(e));
+	if (p_null(p_cdr(e)))
+		return make_number(1.0f / n);
+
+	return arith(p_cdr(e), a, n, quotient_fun);
 }
 
 static int p_symbol(SEXPR e)
@@ -1097,6 +1198,7 @@ static void make_nil_atom(void)
 
 static void gc_mark(SEXPR e)
 {
+	int celli;
 	struct cell *pcell;
 
 	switch (sexpr_type(e)) {
@@ -1107,9 +1209,9 @@ static void gc_mark(SEXPR e)
 	case SEXPR_BUILTIN_FUNCTION:
 	case SEXPR_BUILTIN_SPECIAL_FORM:
 	case SEXPR_PROCEDURE:
-		cellp(sexpr_index(e), pcell);
-		if (pcell->mark == CELL_MARK_CREATED)
-			pcell->mark = CELL_MARK_USED;
+		celli = sexpr_index(e);
+		cellp(celli, pcell);
+		if_cell_mark(celli, CELL_CREATED, CELL_USED);
 		gc_mark(pcell->car);
 		gc_mark(pcell->cdr);
 		break;
@@ -1122,17 +1224,21 @@ static void gc(void)
 	SEXPR e;
 	struct cell *pcell;
 
+	/* Mark used. */
 	gc_mark(s_env);
 	gc_mark(s_stack);
 	gc_mark(s_cons_car);
 	gc_mark(s_cons_cdr);
 
-	/* Return to s_free_cells those marked as CELL_MARK_CREATED */
+	/* Return to s_free_cells those marked as CELL_CREATED and set
+	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
+	 */
 	used = freed = 0;
 	for (i = 0; i < NCELL; i++) {
-		if (cells[i].mark == CELL_MARK_CREATED) {
+		switch (cell_mark(i)) {
+		case CELL_CREATED:
 			freed++;
-			cells[i].mark = CELL_MARK_FREE;
+			mark_cell(i, CELL_FREE);
 			cells[i].car = s_nil_atom;
 			if (p_null(s_free_cells)) {
 				cells[i].cdr = s_nil_atom;
@@ -1141,15 +1247,18 @@ static void gc(void)
 						sexpr_index(s_free_cells));
 			}
 			s_free_cells = make_cons(i);
-		} else if (cells[i].mark == CELL_MARK_USED) {
+			break;
+		case CELL_USED:
 			used++;
-			cells[i].mark = CELL_MARK_CREATED;
+			mark_cell(i, CELL_CREATED);
+			break;
 		}
 	}
 
 	gc_literals();
 
-	printf("[used %d, freed %d]\n", used, freed);
+	printf("[cells used %d, freed %d]\n", used, freed);
+
 #if 0
 	i = 0;
 	e = s_free_cells;
@@ -1165,6 +1274,15 @@ static void gc(void)
 int main(int argc, char* argv[])
 {
 	int i;
+
+	printf("lispe minimal lisp 1.0\n\n");
+	printf("[ncells: %d, ncellmarks: %d]\n", NCELL, NCELLMARK);
+	printf("[bytes sexpr: %u, cell: %u, cells: %u, cellmarks: %u]\n",
+		sizeof(SEXPR),
+		sizeof(cells[0]),
+		NCELL * sizeof(cells[0]),
+	       	NCELLMARK * sizeof(s_cellmarks[0]));
+	printf("\n");
 
 	make_nil_atom();
 	s_stack = s_nil_atom;
@@ -1195,7 +1313,6 @@ int main(int argc, char* argv[])
 			s_cons_car = s_nil_atom;
 			s_cons_cdr = s_nil_atom;
 		}
-		// gc();
 	}
 
 	return 0;
