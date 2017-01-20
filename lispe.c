@@ -125,7 +125,7 @@ static int cell_mark(int i)
 	return (s_cellmarks[w] & (3 << i)) >> i;
 }
 
-static void if_cell_mark(int i, int ifmark, int thenmark)
+static int if_cell_mark(int i, int ifmark, int thenmark)
 {
 	int w;
 	unsigned int mask;
@@ -136,7 +136,10 @@ static void if_cell_mark(int i, int ifmark, int thenmark)
 	mask = 3 << i;
 	if ((s_cellmarks[w] & mask) == (ifmark << i)) {
 		s_cellmarks[w] = (s_cellmarks[w] & ~mask) | (thenmark << i);
+		return 1;
 	}
+
+	return 0;
 }
 
 static int p_atom(SEXPR x)
@@ -1375,9 +1378,10 @@ static void gc_mark(SEXPR e)
 	case SEXPR_SPECIAL:
 		celli = sexpr_index(e);
 		cellp(celli, pcell);
-		if_cell_mark(celli, CELL_CREATED, CELL_USED);
-		gc_mark(pcell->car);
-		gc_mark(pcell->cdr);
+		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {
+			gc_mark(pcell->car);
+			gc_mark(pcell->cdr);
+		}
 		break;
 	}
 }
