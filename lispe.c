@@ -345,6 +345,7 @@ static void pop(void)
 
 /* Given two lists, returns a list with pairs of each list, i.e.:
  * (A B) (C D) -> ((A C) (B D))
+ * and adds it to the start of the list 'a.
  */
 static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 {
@@ -365,7 +366,9 @@ static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 		x = p_cdr(x);
 		y = p_cdr(y);
 	}
+	p_setcdr(node, a);
 	pop();
+
 	return head;
 
 #if 0
