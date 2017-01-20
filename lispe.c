@@ -846,24 +846,29 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	SEXPR val;
 	SEXPR bind;
 
-	var = p_car(sexpr);
-	if (!p_symbolp(var))
-		throw_err();
+	val = s_nil_atom;
+	while (!p_null(sexpr)) {
+		var = p_car(sexpr);
+		if (!p_symbolp(var))
+			throw_err();
 
-	val = push(p_eval(p_car(p_cdr(sexpr)), a));
-	bind = p_assoc(var, a);
-	if (p_null(bind)) {
-		bind = p_assoc(var, s_env);
+		sexpr = p_cdr(sexpr);
+		val = push(p_eval(p_car(sexpr), a));
+		bind = p_assoc(var, a);
 		if (p_null(bind)) {
-			bind = p_cons(var, val);
-			s_env = p_cons(bind, s_env);
+			bind = p_assoc(var, s_env);
+			if (p_null(bind)) {
+				bind = p_cons(var, val);
+				s_env = p_cons(bind, s_env);
+			} else {
+				p_setcdr(bind, val);
+			}
 		} else {
 			p_setcdr(bind, val);
 		}
-	} else {
-		p_setcdr(bind, val);
+		pop();
+		sexpr = p_cdr(sexpr);
 	}
-	pop();
 
 	return val;
 }
