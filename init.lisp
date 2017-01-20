@@ -7,9 +7,7 @@
     (cond ((eq n 0) t)
 	  (t nil))))
 
-(setq not (lambda (b)
-    (cond ((null b) t)
-	  (t nil))))
+(setq not null)
 
 (setq booleanp (lambda (b)
     (cond ((null b) t)
@@ -51,10 +49,6 @@
            )
 	   (t (cons (car p) (append (cdr p) q))))))
 
-(setq fact (lambda (n)
-    (cond ((eq n 0) 1)
-	  (t (* n (fact (- n 1)))))))
-
 (setq and (special (p)
     ((lambda andlis (q)
         (cond ((null q) t)
@@ -67,4 +61,8 @@
 
 (setq push (special (a p)
    (set p (eval (list 'cons a p)))))
+
+(setq fact (lambda (n)
+    (cond ((eq n 0) 1)
+	  (t (* n (fact (- n 1)))))))
 

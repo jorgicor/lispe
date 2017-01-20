@@ -1296,7 +1296,7 @@ static SEXPR extend_environment(SEXPR vars, SEXPR vals, SEXPR base_env)
 
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 {
-	SEXPR e1, e2, r;
+	SEXPR e1, r;
 	struct cell *pcell;
 
 #if 0
@@ -1315,11 +1315,12 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(fn), pcell);
-		e1 = p_car(pcell->cdr);
-		e2 = push(p_pairlis(pcell->car, x, a));
-		r = p_eval(e1, e2);
-		// printf("r: ");
-		// println(r);
+		a = push(p_pairlis(pcell->car, x, a));
+		e1 = pcell->cdr;
+		while (!p_null(e1)) {
+			r = p_eval(p_car(e1), a);
+			e1 = p_cdr(e1);
+		}
 		pop();
 		return r;
 	default:
