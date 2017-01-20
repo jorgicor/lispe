@@ -9,11 +9,13 @@
 static void gc(void);
 static void print(SEXPR sexpr);
 static void println(SEXPR sexpr);
-static SEXPR p_assoc(SEXPR x, SEXPR a);
+
 static SEXPR p_evlis(SEXPR m, SEXPR a);
 static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
 static SEXPR p_eval(SEXPR e, SEXPR a);
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a);
+static SEXPR p_evcon(SEXPR c, SEXPR a);
+
 static SEXPR plus(SEXPR e, SEXPR a);
 static SEXPR difference(SEXPR e, SEXPR a);
 static SEXPR times(SEXPR e, SEXPR a);
@@ -21,26 +23,33 @@ static SEXPR quotient(SEXPR e, SEXPR a);
 static SEXPR eq(SEXPR e, SEXPR a);
 static SEXPR equal(SEXPR e, SEXPR a);
 static SEXPR atom(SEXPR e, SEXPR a);
+static SEXPR symbolp(SEXPR e, SEXPR a);
 static SEXPR cons(SEXPR e, SEXPR a);
 static SEXPR car(SEXPR e, SEXPR a);
 static SEXPR cdr(SEXPR e, SEXPR a);
+static SEXPR setcar(SEXPR e, SEXPR a);
+static SEXPR setcdr(SEXPR e, SEXPR a);
 static SEXPR quote(SEXPR e, SEXPR a);
 static SEXPR cond(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
-static SEXPR p_evcon(SEXPR c, SEXPR a);
+static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
+static SEXPR assoc(SEXPR e, SEXPR a);
 static SEXPR label(SEXPR e, SEXPR a);
 static SEXPR setq(SEXPR sexpr, SEXPR a);
 static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
-static SEXPR number(SEXPR e, SEXPR a);
+static SEXPR consp(SEXPR e, SEXPR a);
+static SEXPR numberp(SEXPR e, SEXPR a);
 static SEXPR null(SEXPR e, SEXPR a);
-static int p_null(SEXPR e);
-static int p_atom(SEXPR x);
-static int p_number(SEXPR e);
-static int p_symbol(SEXPR e);
+
+enum {
+	ERRORC_OK,
+	ERRORC_EOF,
+	ERRORC_SYNTAX,
+};
 
 enum {
 	NCELL = 1000,
@@ -81,27 +90,23 @@ static SEXPR s_stack;
 static SEXPR s_cons_car;
 static SEXPR s_cons_cdr;
 
-#if 0
-static void cellp(int i, struct cell *pcell)
-{
-	assert(i >= 0 && i < NCELL);
-	return &cells[i];
-}
-#endif
+/* 
+ * List of free cells.
+ */
+static SEXPR s_free_cells;
 
-#define cellp(i,cellp) \
-	do { \
-		int k; \
-		k = i; \
-		assert(k >= 0 && k < NCELL); \
-		cellp = &cells[k]; \
-	} while (0);
+/*********************************************************
+ * Exceptions.
+ *********************************************************/
 
 static void throw_err(void)
 {
 	longjmp(buf, 1);
 }
 
+/*********************************************************
+ * Cell marking for gc.
+ *********************************************************/
 
 /* 'mark must be CELL_FREE, CELL_CREATED or CELL_USED. */
 static void mark_cell(int i, int mark)
@@ -142,59 +147,146 @@ static int if_cell_mark(int i, int ifmark, int thenmark)
 	return 0;
 }
 
+/*********************************************************
+ * Internal predicates and functions, start with p_ 
+ *********************************************************/
+
+/* Get the cell at index i into pcell. Range checking. */
+#if 0
+static void cellp(int i, struct cell *pcell)
+{
+	assert(i >= 0 && i < NCELL);
+	return &cells[i];
+}
+#else
+#define cellp(i,cellp) \
+	do { \
+		int k; \
+		k = i; \
+		assert(k >= 0 && k < NCELL); \
+		cellp = &cells[k]; \
+	} while (0);
+#endif
+
+static int p_symbolp(SEXPR e)
+{
+	return sexpr_type(e) == SEXPR_LITERAL;
+}
+
+static int p_numberp(SEXPR e)
+{
+	return sexpr_type(e) == SEXPR_NUMBER;
+}
+
+static int p_null(SEXPR e)
+{
+	return sexpr_type(e) == SEXPR_LITERAL &&
+		literals_equal(sexpr_literal(e), sexpr_literal(s_nil_atom));
+}
+
+/* TODO: atom x = not (consp x) ?? */
 static int p_atom(SEXPR x)
 {
-	return p_number(x) || p_symbol(x);
+	return p_numberp(x) || p_symbolp(x);
+}
+
+static int p_consp(SEXPR e)
+{
+	return sexpr_type(e) == SEXPR_CONS;
+}
+
+static int p_eq(SEXPR x, SEXPR y)
+{
+	if (p_null(x) && p_null(y)) {
+		return 1;
+	} else if (p_symbolp(x) && p_symbolp(y)) {
+		return literals_equal(sexpr_literal(x), sexpr_literal(y));
+	} else if (p_numberp(x) && p_numberp(y)) {
+		return sexpr_number(x) == sexpr_number(y);
+	} else {
+		throw_err();
+	}
 }
 
 static SEXPR p_car(SEXPR e)
 {
 	struct cell *pcell;
 
-	switch (sexpr_type(e)) {
-	case SEXPR_CONS:
-		cellp(sexpr_index(e), pcell);
-		return pcell->car;
-	default:
+	if (!p_consp(e))
 		throw_err();
-	}
+
+	cellp(sexpr_index(e), pcell);
+	return pcell->car;
 }
 
 static SEXPR p_cdr(SEXPR e)
 {
 	struct cell *pcell;
 
-	switch (sexpr_type(e)) {
-	case SEXPR_CONS:
-		cellp(sexpr_index(e), pcell);
-		return pcell->cdr;
-	default:
+	if (!p_consp(e))
 		throw_err();
-	}
+
+	cellp(sexpr_index(e), pcell);
+	return pcell->cdr;
 }
 
-static void p_set_car(SEXPR e, SEXPR val)
+static int p_equal(SEXPR x, SEXPR y)
 {
-	if (sexpr_type(e) == SEXPR_CONS) {
-		cells[sexpr_index(e)].car = val;
-	} else {
-		throw_err();
+	for (;;) {
+		if (p_atom(x)) {
+			if (p_atom(y)) {
+				return p_eq(x, y);
+			} else {
+				return 0;
+			}
+		} else if (p_equal(p_car(x), p_car(y))) {
+			x = p_cdr(x);
+			y = p_cdr(y);
+		} else {
+			return 0;
+		}
 	}
 }
 
-static void p_set_cdr(SEXPR e, SEXPR val)
+static SEXPR p_setcar(SEXPR e, SEXPR val)
 {
-	if (sexpr_type(e) == SEXPR_CONS) {
-		cells[sexpr_index(e)].cdr = val;
-	} else {
+	struct cell *pcell;
+
+	if (!p_consp(e))
 		throw_err();
-	}
+
+	cellp(sexpr_index(e), pcell);
+	pcell->car = val;
+	return val;
 }
 
-/* 
- * List of free cells.
+static SEXPR p_setcdr(SEXPR e, SEXPR val)
+{
+	struct cell *pcell;
+
+	if (!p_consp(e))
+		throw_err();
+
+	cellp(sexpr_index(e), pcell);
+	pcell->cdr = val;
+	return val;
+}
+
+/* 'a is an association list such as the one produced by 'p_pairlis.
+ * Return the first pair whose 'car is 'x.
  */
-static SEXPR s_free_cells;
+static SEXPR p_assoc(SEXPR x, SEXPR a)
+{
+	for (;;) {
+		if (p_null(a)) {
+			return s_nil_atom;
+		} else if (p_equal(p_car(p_car(a)), x)) {
+			return p_car(a);
+		} else {
+			a = p_cdr(a);
+		}
+	}
+}
 
 static int pop_free_cell()
 {
@@ -233,8 +325,11 @@ static SEXPR p_cons(SEXPR first, SEXPR rest)
 	return make_cons(i);
 }
 
-/* Protect expression form gc by pushin it to s_stack.
- * Returns e. */
+/*********************************************************
+ * push and pop to stack to protect from gc.
+ *********************************************************/
+
+/* Protect expression form gc by pushin it to s_stack. Return e. */
 static SEXPR push(SEXPR e)
 {
 	s_stack = p_cons(e, s_stack);
@@ -248,38 +343,82 @@ static void pop(void)
 	s_stack = p_cdr(s_stack);
 }
 
+/* Given two lists, returns a list with pairs of each list, i.e.:
+ * (A B) (C D) -> ((A C) (B D))
+ */
+static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
+{
+	SEXPR head, node, node2;
+
+	if (p_null(x))
+		return a;
+
+	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
+
+	node = head;
+	x = p_cdr(x);
+	y = p_cdr(y);
+	while (!p_null(x)) {
+		node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
+		p_setcdr(node, node2);
+		node = node2;
+		x = p_cdr(x);
+		y = p_cdr(y);
+	}
+	pop();
+	return head;
+
+#if 0
+	/* recursive version */
+	if (p_null(x)) {
+		return a;
+	} else {	
+		a = push(p_pairlis(p_cdr(x), p_cdr(y), a));
+		a = p_cons(p_cons(p_car(x), p_car(y)), a);
+		pop();
+		return a;
+	}
+#endif
+}
+
 struct builtin {
 	const char* id;
 	SEXPR (*fun)(SEXPR, SEXPR);
 };
 
 static struct builtin builtin_functions[] = {
+	{ "atom", &atom },
+	{ "assoc", &assoc },
 	{ "car",  &car },
 	{ "cdr", &cdr },
 	{ "cons", &cons },
-	{ "atom?", &atom },
-	{ "eq?", &eq },
-	{ "equal?", &equal },
-	{ "number?", &number },
-	{ "null?", &null },
-	{ "+", &plus },
+	{ "consp", &consp },
 	{ "-", &difference},
+	{ "eq", &eq },
+	{ "equal", &equal },
+	{ ">", &greaterp },
+	{ "<", &lessp },
+	{ "null", &null },
+	{ "numberp", &numberp },
+	{ "+", &plus },
+	{ "setcar", &setcar },
+	{ "setcdr", &setcdr },
+	{ "symbolp", &symbolp },
 	{ "*", &times },
 	{ "/", &quotient },
 	/* modulo and remainder */
-	{ "<", &lessp },
-	{ ">", &greaterp },
 };
 
 static struct builtin builtin_specials[] = {
-	{ "quote", &quote },
+	{ "body", &body },
 	{ "cond", &cond },
+	{ "eval", &eval },
 	{ "label", &label },
 	{ "lambda", &lambda },
+	{ "list", &list },
+	{ "quote", &quote },
+	{ "setq", &setq },
 	{ "special", &special },
-	{ "eval", &eval },
-	{ "body", &body },
-	{ "setq!", &setq },
 };
 
 static SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
@@ -299,6 +438,12 @@ struct input_channel {
 struct input_channel *read_console(struct input_channel *ic)
 {
 	ic->file = stdin;
+	return ic;
+}
+
+struct input_channel *read_file(struct input_channel *ic, FILE *fp)
+{
+	ic->file = fp;
 	return ic;
 }
 
@@ -338,7 +483,7 @@ struct tokenizer *tokenize(struct input_channel *ic,
 {
 	t->in = ic;
 	t->tok.type = EOF;
-	t->peekc = -1;
+	t->peekc = EOF;
 	return t;
 }
 
@@ -359,16 +504,17 @@ struct token *pop_token(struct tokenizer *t)
 	int i;
 	float n;
 
-again:	if (t->peekc >= 0) {
+again:	
+	if (t->peekc >= 0) {
 		c = t->peekc;
-		t->peekc = -1;
+		t->peekc = EOF;
 	} else {
 		c = getc_from_channel(t->in);
 	}
 
 	if (c == EOF) {
 		t->tok.type = EOF;
-	} if (c == '(' || c == ')' || c == '.' || c == '\'') {
+	} else if (c == '(' || c == ')' || c == '.' || c == '\'') {
 		t->tok.type = c;
 	} else if (is_id_start(c)) {
 		t->tok.type = T_ATOM;
@@ -403,6 +549,7 @@ again:	if (t->peekc >= 0) {
 		/* skip wrong token for now */
 		goto again;
 	}
+
 	return &t->tok;
 }
 
@@ -417,17 +564,17 @@ enum {
 
 struct parser {
 	struct tokenizer *tokenizer;
-	char stack[PARSER_NSTACK];
-	SEXPR retval[PARSER_NSTACK];
+	// char stack[PARSER_NSTACK];
+	// SEXPR retval[PARSER_NSTACK];
 	int sp;
-	int state;
+	// int state;
 };
 
 struct parser *parse(struct tokenizer *t, struct parser *p)
 {
 	p->tokenizer = t;
 	p->sp = 0;
-	p->state = 0;
+	// p->state = 0;
 	return p;
 }
 
@@ -509,9 +656,9 @@ error:	*iserror = 1;
 }
 #endif
 
-static SEXPR parse_sexpr(struct parser *p, int *iserror);
+static SEXPR parse_sexpr(struct parser *p, int *errorc);
 
-static SEXPR parse_list(struct parser *p, int *iserror)
+static SEXPR parse_list(struct parser *p, int *errorc)
 {
 	struct token *tok;
 	SEXPR car, cdr;
@@ -521,34 +668,35 @@ static SEXPR parse_list(struct parser *p, int *iserror)
 		return s_nil_atom;
 	}
 
-	car = parse_sexpr(p, iserror);
-	if (*iserror)
+	car = parse_sexpr(p, errorc);
+	if (*errorc != ERRORC_OK)
 		goto error;
 
 	push(car);
 	if (tok->type == '.') {
 		pop_token(p->tokenizer);
-		cdr = parse_sexpr(p, iserror);
+		cdr = parse_sexpr(p, errorc);
 	} else {
-		cdr = parse_list(p, iserror);
+		cdr = parse_list(p, errorc);
 	}
 	pop();
 
-	if (*iserror)
+	if (*errorc != ERRORC_OK)
 		goto error;
 
 	return p_cons(car, cdr);
 
-error:	*iserror = 1;
+error:	if (*errorc == ERRORC_OK)
+	       	ERRORC_SYNTAX;
 	return s_nil_atom;
 }
 
-static SEXPR parse_quote(struct parser *p, int *iserror)
+static SEXPR parse_quote(struct parser *p, int *errorc)
 {
 	SEXPR sexpr;
 
-	sexpr = parse_sexpr(p, iserror);
-	if (*iserror)
+	sexpr = parse_sexpr(p, errorc);
+	if (*errorc != ERRORC_OK)
 		return s_nil_atom;
 
 	sexpr = push(p_cons(sexpr, s_nil_atom));
@@ -557,14 +705,17 @@ static SEXPR parse_quote(struct parser *p, int *iserror)
 	return sexpr;
 }
 
-static SEXPR parse_sexpr(struct parser *p, int *iserror)
+static SEXPR parse_sexpr(struct parser *p, int *errorc)
 {
 	struct token *tok;
 	SEXPR sexpr;
 	LITERAL lit;
 
 	tok = peek_token(p->tokenizer);
-	if (tok->type == T_ATOM) {	
+	if (tok->type == EOF) {
+		*errorc = ERRORC_EOF;
+		return s_nil_atom;
+	} else if (tok->type == T_ATOM) {	
 		lit = new_literal(tok->value.atom.name, tok->value.atom.len);
 		sexpr = make_literal(lit);
 		if (p->sp > 0) {
@@ -579,12 +730,12 @@ static SEXPR parse_sexpr(struct parser *p, int *iserror)
 		return sexpr;
 	} else if (tok->type == '\'') {
 		pop_token(p->tokenizer);
-		return parse_quote(p, iserror);
+		return parse_quote(p, errorc);
 	} else if (tok->type == '(') {
 		p->sp++;
 		pop_token(p->tokenizer);
-		sexpr = parse_list(p, iserror);
-		if (*iserror) {
+		sexpr = parse_list(p, errorc);
+		if (*errorc != ERRORC_OK) {
 			goto error;
 		}
 		tok = peek_token(p->tokenizer);
@@ -598,35 +749,72 @@ static SEXPR parse_sexpr(struct parser *p, int *iserror)
 		return sexpr;
 	}
 
-error:	*iserror = 1;
+error:	if (*errorc != ERRORC_OK)
+		*errorc = ERRORC_SYNTAX;
 	return s_nil_atom;
 }
 
-static SEXPR get_sexpr(struct parser *p, int *iserror)
+static SEXPR get_sexpr(struct parser *p, int *errorc)
 {
+	*errorc = ERRORC_OK;
 	pop_token(p->tokenizer);
-	return parse_sexpr(p, iserror);
+	return parse_sexpr(p, errorc);
 }
 
-static SEXPR read(void)
+static void clear_stack(void)
+{
+	s_stack = s_nil_atom;
+	s_cons_car = s_nil_atom;
+	s_cons_cdr = s_nil_atom;
+}
+
+static void load_init_file(void)
 {
 	struct input_channel ic;
 	struct tokenizer t;
 	struct parser p;
 	SEXPR sexpr;
-	int iserror;
+	int errorc;
+	FILE *fp;
 
-again:	printf("lispe> ");
-	iserror = 0;
-	sexpr = get_sexpr(
-			parse(tokenize(read_console(&ic), &t), &p),
-			&iserror);
-	if (iserror) {
-		printf("Syntax error\n");
-		goto again;
-	} else {
-		return sexpr;
+	if (setjmp(buf)) {
+		printf("lispe: error loading init.lisp\n");
+		clear_stack();
+		goto end;
 	}
+
+	fp = fopen("init.lisp", "r");
+	if (!fp)
+		return;
+
+	tokenize(read_file(&ic, fp), &t);
+	do {
+		sexpr = get_sexpr(parse(&t, &p), &errorc);
+		if (errorc == ERRORC_OK) {
+			push(sexpr);
+			p_eval(sexpr, s_nil_atom); 
+			pop();
+		}
+	} while (errorc == ERRORC_OK);
+
+	if (errorc == ERRORC_SYNTAX) {
+		printf("lispe: syntax error on init.lisp\n");
+	} else {
+		printf("[init.lisp loaded ok]\n");
+	}
+
+end:	fclose(fp);
+}
+
+static SEXPR read(int *errorc)
+{
+	struct input_channel ic;
+	struct tokenizer t;
+	struct parser p;
+	SEXPR sexpr;
+
+	return get_sexpr(parse(tokenize(read_console(&ic), &t), &p),
+			 errorc);
 }
 
 /****************************************************/
@@ -641,6 +829,17 @@ static SEXPR cond(SEXPR e, SEXPR a)
 	return p_evcon(e, a);
 }
 
+/* TODO: make builtin function? (the arguments eval automatically */
+static SEXPR list(SEXPR e, SEXPR a)
+{
+	return p_evlis(e, a);
+}
+
+static SEXPR assoc(SEXPR e, SEXPR a)
+{
+	return p_assoc(p_car(e), p_car(p_cdr(e)));
+}
+
 static SEXPR setq(SEXPR sexpr, SEXPR a)
 {
 	SEXPR var;
@@ -648,7 +847,7 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	SEXPR bind;
 
 	var = p_car(sexpr);
-	if (!p_symbol(var))
+	if (!p_symbolp(var))
 		throw_err();
 
 	val = push(p_eval(p_car(p_cdr(sexpr)), a));
@@ -659,10 +858,10 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 			bind = p_cons(var, val);
 			s_env = p_cons(bind, s_env);
 		} else {
-			p_set_cdr(bind, val);
+			p_setcdr(bind, val);
 		}
 	} else {
-		p_set_cdr(bind, val);
+		p_setcdr(bind, val);
 	}
 	pop();
 
@@ -678,7 +877,7 @@ static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
 {
 	e = p_evlis(e, a);
 	while (!p_null(e)) {
-		if (!p_number(p_car(e)))
+		if (!p_numberp(p_car(e)))
 			throw_err();
 		n = fun(n, sexpr_number(p_car(e)));
 		e = p_cdr(e);
@@ -692,13 +891,13 @@ static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 	float n, n2;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_number(p_car(e)))
+	if (p_null(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
 	e = p_cdr(e);
 	while (!p_null(e)) {
-		if (!p_number(p_car(e)))
+		if (!p_numberp(p_car(e)))
 			throw_err();
 		n2 = sexpr_number(p_car(e));
 		if (!fun(n, n2))
@@ -750,7 +949,7 @@ static SEXPR difference(SEXPR e, SEXPR a)
 	float n;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_number(p_car(e)))
+	if (p_null(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
@@ -783,7 +982,7 @@ static SEXPR quotient(SEXPR e, SEXPR a)
 	float n;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_number(p_car(e)))
+	if (p_null(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
@@ -796,22 +995,6 @@ static SEXPR quotient(SEXPR e, SEXPR a)
 	return e;
 }
 
-static int p_symbol(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_LITERAL;
-}
-
-static int p_number(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_NUMBER;
-}
-
-static int p_null(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_LITERAL &&
-		sexpr_literal(e) == sexpr_literal(s_nil_atom);
-}
-
 static SEXPR car(SEXPR e, SEXPR a)
 {
 	return p_car(p_car(e));
@@ -822,53 +1005,52 @@ static SEXPR cdr(SEXPR e, SEXPR a)
 	return p_cdr(p_car(e));
 }
 
-static SEXPR atom(SEXPR e, SEXPR a)
+static SEXPR setcar(SEXPR e, SEXPR a)
 {
-	if (p_atom(p_car(e))) {
-		return s_true_atom;
-	} else {
-		return s_nil_atom;
-	}
+	SEXPR p, q;
+
+	p = p_car(e);
+	q = p_car(p_cdr(e));
+	return p_setcar(p, q); 
 }
 
-static SEXPR number(SEXPR e, SEXPR a)
+static SEXPR setcdr(SEXPR e, SEXPR a)
 {
-	if (p_number(p_car(e))) {
-		return s_true_atom;
-	} else {
-		return s_nil_atom;
-	}
+	SEXPR p, q;
+
+	p = p_car(e);
+	q = p_car(p_cdr(e));
+	return p_setcdr(p, q); 
+}
+
+static SEXPR atom(SEXPR e, SEXPR a)
+{
+	return p_atom(p_car(e)) ? s_true_atom : s_nil_atom;
+}
+
+static SEXPR symbolp(SEXPR e, SEXPR a)
+{
+	return p_symbolp(p_car(e)) ? s_true_atom : s_nil_atom;
+}
+
+static SEXPR consp(SEXPR e, SEXPR a)
+{
+	return p_consp(p_car(e)) ? s_true_atom : s_nil_atom;
+}
+
+static SEXPR numberp(SEXPR e, SEXPR a)
+{
+	return p_numberp(p_car(e)) ? s_true_atom : s_nil_atom;
 }
 
 static SEXPR null(SEXPR e, SEXPR a)
 {
-	if (p_null(p_car(e))) {
-		return s_true_atom;
-	} else {
-		return s_nil_atom;
-	}
-}
-
-static int p_eq(SEXPR x, SEXPR y)
-{
-	if (p_null(x) && p_null(y)) {
-		return 1;
-	} else if (p_symbol(x) && p_symbol(y)) {
-		return literals_equal(sexpr_literal(x), sexpr_literal(y));
-	} else if (p_number(x) && p_number(y)) {
-		return sexpr_number(x) == sexpr_number(y);
-	} else {
-		throw_err();
-	}
+	return p_null(p_car(e)) ? s_true_atom : s_nil_atom;
 }
 
 static SEXPR eq(SEXPR e, SEXPR a)
 {
-	if (p_eq(p_car(e), p_car(p_cdr(e)))) {
-		return s_true_atom;
-	} else {
-		return s_nil_atom;
-	}
+	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : s_nil_atom;
 }
 
 static SEXPR label(SEXPR e, SEXPR a)
@@ -876,8 +1058,9 @@ static SEXPR label(SEXPR e, SEXPR a)
 	SEXPR name, proc, args, r;
 
 	name = p_car(e);
-	if (!p_symbol(name))
+	if (!p_symbolp(name))
 		throw_err();
+
 	proc = push(p_eval(p_car(p_cdr(e)), a));
 	args = push(p_evlis(p_cdr(p_cdr(e)), a));
 	a = push(p_add(name, proc, a)); 
@@ -901,6 +1084,7 @@ static SEXPR special(SEXPR e, SEXPR a)
 	return make_special(sexpr_index(e));
 }
 
+/* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
 static SEXPR body(SEXPR e, SEXPR a)
 {
 	struct cell *pcell;
@@ -929,25 +1113,6 @@ static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
 	return p_cons(p_cons(var, val), a);
 }
 
-/* If two S-expressions are equal. */
-static int p_equal(SEXPR x, SEXPR y)
-{
-	for (;;) {
-		if (p_atom(x)) {
-			if (p_atom(y)) {
-				return p_eq(x, y);
-			} else {
-				return 0;
-			}
-		} else if (p_equal(p_car(x), p_car(y))) {
-			x = p_cdr(x);
-			y = p_cdr(y);
-		} else {
-			return 0;
-		}
-	}
-}
-
 static SEXPR equal(SEXPR e, SEXPR a)
 {
 	if (p_equal(p_car(e), p_car(p_cdr(e))))
@@ -961,6 +1126,7 @@ static SEXPR equal(SEXPR e, SEXPR a)
  */
 static SEXPR p_evlis(SEXPR m, SEXPR a)
 {
+#if 1
 	SEXPR head, node, node2;
 	
 	if (p_null(m))
@@ -972,15 +1138,13 @@ static SEXPR p_evlis(SEXPR m, SEXPR a)
 	m = p_cdr(m);
 	while (!p_null(m)) {
 		node2 = p_cons(p_eval(p_car(m), a), s_nil_atom);
-		p_set_cdr(node, node2);
+		p_setcdr(node, node2);
 		node = node2;
 		m = p_cdr(m);
 	}
 	pop();
 	return head;
-
-
-#if 0
+#else
 	/* recursive version */
 	SEXPR e1;
 
@@ -1003,60 +1167,6 @@ static SEXPR p_evcon(SEXPR c, SEXPR a)
 			return p_eval(p_car(p_cdr(p_car(c))), a);
 		} else {
 			c = p_cdr(c);
-		}
-	}
-}
-
-/* Given two lists, returns a list with pairs of each list, i.e.:
- * (A B) (C D) -> ((A C) (B D))
- */
-static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
-{
-	SEXPR head, node, node2;
-
-	if (p_null(x))
-		return a;
-
-	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
-
-	node = head;
-	x = p_cdr(x);
-	y = p_cdr(y);
-	while (!p_null(x)) {
-		node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
-		p_set_cdr(node, node2);
-		node = node2;
-		x = p_cdr(x);
-		y = p_cdr(y);
-	}
-	pop();
-	return head;
-
-#if 0
-	/* recursive version */
-	if (p_null(x)) {
-		return a;
-	} else {	
-		a = push(p_pairlis(p_cdr(x), p_cdr(y), a));
-		a = p_cons(p_cons(p_car(x), p_car(y)), a);
-		pop();
-		return a;
-	}
-#endif
-}
-
-/* a is an association list such as the one produced by p_pairlis;
- * returns the first pair whose CAR is x.
- */
-static SEXPR p_assoc(SEXPR x, SEXPR a)
-{
-	for (;;) {
-		if (p_null(a)) {
-			return s_nil_atom;
-		} else if (p_equal(p_car(p_car(a)), x)) {
-			return p_car(a);
-		} else {
-			a = p_cdr(a);
 		}
 	}
 }
@@ -1088,8 +1198,8 @@ static SEXPR frame_values(SEXPR frame)
 
 static void add_binding_to_frame(SEXPR var, SEXPR val, SEXPR frame)
 {
-	p_set_car(frame, p_cons(var, p_car(frame)));
-	p_set_cdr(frame, p_cons(val, p_cdr(frame)));
+	p_setcar(frame, p_cons(var, p_car(frame)));
+	p_setcdr(frame, p_cons(val, p_cdr(frame)));
 }
 
 static SEXPR lookup_variable_value(SEXPR var, SEXPR env)
@@ -1129,7 +1239,7 @@ static void set_variable_value(SEXPR var, SEXPR val, SEXPR env)
 		vals = frame_values(frame);
 		while (!p_null(env)) {
 			if (p_eq(var, p_car(vars))) {
-				p_set_car(vals, val);
+				p_setcar(vals, val);
 				return;
 			}
 			vars = p_cdr(vars);
@@ -1154,7 +1264,7 @@ static void define_variable(SEXPR var, SEXPR val, SEXPR env)
 		if (p_null(vars))
 			return;
 		if (p_eq(var, p_car(vars))) {
-			p_set_car(vals, val);
+			p_setcar(vals, val);
 			return;
 		}
 		vars = p_cdr(vars);
@@ -1208,6 +1318,8 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 		e1 = p_car(pcell->cdr);
 		e2 = push(p_pairlis(pcell->car, x, a));
 		r = p_eval(e1, e2);
+		// printf("r: ");
+		// println(r);
 		pop();
 		return r;
 	default:
@@ -1230,10 +1342,10 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		c = p_cdr(c);
 		return c;
 	case SEXPR_CONS:
-		//printf("eval ");
-		// println(e);
-		//printf("a: ");
-		// println(a);
+		printf("eval: ");
+		println(e);
+		printf("a: ");
+		println(a);
 		c = push(p_eval(p_car(e), a));
 		switch (sexpr_type(c)) {
 		case SEXPR_BUILTIN_SPECIAL:
@@ -1246,6 +1358,8 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			pop();
 		}
 		pop();
+		printf("r: ");
+		println(c);
 		return c;
 	default:
 		throw_err();
@@ -1266,6 +1380,7 @@ static void print(SEXPR sexpr)
 
 	switch (sexpr_type(sexpr)) {
 	case SEXPR_CONS:
+		/* TODO: avoid infinite recursion */
 		i = sexpr_index(sexpr);
 		printf("(");
 		print(cells[i].car);
@@ -1441,7 +1556,7 @@ static void gc(void)
 
 int main(int argc, char* argv[])
 {
-	int i;
+	int i, errorc;
 	SEXPR e;
 
 	printf("lispe minimal lisp 1.0\n\n");
@@ -1451,7 +1566,6 @@ int main(int argc, char* argv[])
 		sizeof(cells[0]),
 		NCELL * sizeof(cells[0]),
 	       	NCELLMARK * sizeof(s_cellmarks[0]));
-	printf("\n");
 
 	make_nil_atom();
 	s_stack = s_nil_atom;
@@ -1472,17 +1586,25 @@ int main(int argc, char* argv[])
 	install_builtin_functions();
 	install_builtin_specials();
 
+	load_init_file();
+
 	/* REPL */
 	for (;;) {
+		printf("lispe> ");
 		if (!setjmp(buf)) {
-			e = push(read());
-			println(p_eval(e, s_nil_atom));
-			pop();
+			e = read(&errorc);
+			if (errorc == ERRORC_EOF) {
+				break;
+			} else if (errorc == ERRORC_SYNTAX) {
+				printf("lispe: syntax error\n");
+			} else {
+				push(e);
+				println(p_eval(e, s_nil_atom));
+				pop();
+			}
 		} else {
-			printf("** ERROR **\n");
-			s_stack = s_nil_atom;
-			s_cons_car = s_nil_atom;
-			s_cons_cdr = s_nil_atom;
+			printf("lispe: ** error **\n");
+			clear_stack();
 		}
 		assert(p_equal(s_stack, s_nil_atom));
 	}
