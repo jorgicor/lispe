@@ -3,8 +3,6 @@
 
 #define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
 
-#define USE_TREE 0
-
 typedef struct literal * LITERAL;
 
 /* literal will be 4 bytes on 32 bit systems, and 8 on 64 bit systems! */

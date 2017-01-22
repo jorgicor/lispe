@@ -832,7 +832,7 @@ static SEXPR cond(SEXPR e, SEXPR a)
 	return p_evcon(e, a);
 }
 
-/* TODO: make builtin function? (the arguments eval automatically */
+/* TODO: make builtin function so the arguments eval automatically? */
 static SEXPR list(SEXPR e, SEXPR a)
 {
 	return p_evlis(e, a);

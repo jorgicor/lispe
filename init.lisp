@@ -66,3 +66,7 @@
     (cond ((eq n 0) 1)
 	  (t (* n (fact (- n 1)))))))
 
+(setq let (special (varlist forms)
+    (eval (cons
+	    (list 'lambda (map car varlist) forms)
+	    (map cadr varlist)))))
