@@ -70,3 +70,14 @@
     (eval (cons
 	    (list 'lambda (map car varlist) forms)
 	    (map cadr varlist)))))
+
+(setq maplist (lambda (x fn)
+    (cond ((null x) nil)
+	  (t (cons (fn x) (maplist (cdr x) fn))))))
+
+(setq make-counter (lambda (value)
+    (closure () (setq value (+ value 1)))))
+
+(setq make-balance (lambda (balance)
+    (closure (amount) (setq balance (- balance amount)))))
+

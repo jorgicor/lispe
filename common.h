@@ -25,6 +25,7 @@ enum {
 	SEXPR_BUILTIN_SPECIAL,
 	SEXPR_FUNCTION,
 	SEXPR_SPECIAL,
+	SEXPR_CLOSURE,
 };
 
 /* sexpr.c */
@@ -36,6 +37,7 @@ SEXPR make_builtin_function(int i);
 SEXPR make_builtin_special(int i);
 SEXPR make_function(int args_n_body);
 SEXPR make_special(int args_n_body);
+SEXPR make_closure(int lambda_n_alist);
 
 int sexpr_type(SEXPR e);
 int sexpr_index(SEXPR e);

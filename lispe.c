@@ -35,6 +35,7 @@ static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
+static SEXPR closure(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
 static SEXPR label(SEXPR e, SEXPR a);
@@ -418,6 +419,7 @@ static struct builtin builtin_specials[] = {
 	{ "eval", &eval },
 	{ "label", &label },
 	{ "lambda", &lambda },
+	{ "closure", &closure },
 	{ "list", &list },
 	{ "quote", &quote },
 	{ "setq", &setq },
@@ -1092,6 +1094,12 @@ static SEXPR special(SEXPR e, SEXPR a)
 	return make_special(sexpr_index(e));
 }
 
+static SEXPR closure(SEXPR e, SEXPR a)
+{
+	return make_closure(sexpr_index(p_cons(e, a)));
+	// return make_closure(sexpr_index(p_cons(p_car(e), a)));
+}
+
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
 static SEXPR body(SEXPR e, SEXPR a)
 {
@@ -1101,6 +1109,11 @@ static SEXPR body(SEXPR e, SEXPR a)
 	e = push(p_evlis(e, a));
 	e = p_car(e);
 	switch (sexpr_type(e)) {
+	case SEXPR_CLOSURE:
+		cellp(sexpr_index(e), pcell);
+		e = pcell->car;
+		pop();
+		return e;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(e), pcell);
@@ -1339,6 +1352,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 static SEXPR p_eval(SEXPR e, SEXPR a)
 {
 	SEXPR c, e1;
+	struct cell *pcell;
 
 	switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
@@ -1360,6 +1374,12 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
 			c = p_apply(c, p_cdr(e), a);
+			break;
+		case SEXPR_CLOSURE:
+			e1 = push(p_evlis(p_cdr(e), a));
+			cellp(sexpr_index(c), pcell);
+			c = p_apply(lambda(pcell->car, a), e1, pcell->cdr);
+			pop();
 			break;
 		default:
 			e1 = push(p_evlis(p_cdr(e), a));
@@ -1433,6 +1453,9 @@ static void print(SEXPR sexpr)
 	case SEXPR_SPECIAL:
 		printf("{special}");
 		break;
+	case SEXPR_CLOSURE:
+		printf("{closure}");
+		break;
 	}
 }
 
@@ -1500,6 +1523,7 @@ static void gc_mark(SEXPR e)
 	case SEXPR_BUILTIN_SPECIAL:
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
+	case SEXPR_CLOSURE:
 		celli = sexpr_index(e);
 		cellp(celli, pcell);
 		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {

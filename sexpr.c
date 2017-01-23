@@ -66,6 +66,15 @@ SEXPR make_builtin_special(int i)
 	return e;
 }
 
+SEXPR make_closure(int args_n_body)
+{
+	SEXPR e;
+
+	e.type = SEXPR_CLOSURE;
+	e.data.index = args_n_body;
+	return e;
+}
+
 SEXPR make_function(int args_n_body)
 {
 	SEXPR e;
