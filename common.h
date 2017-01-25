@@ -6,19 +6,23 @@
 typedef struct literal * LITERAL;
 
 /*
- * .index is 0xxxx... : xxx... cons cell index.
- *           1xxxx... : xxx... index of cell with atom inside.
- * cells containing atoms:
- * car 0 : cdr .literal pointer to literal
- * car 1 : cdr .float number
- * car 2 : cdr .index of builtin function
- * car 3 : cdr .index of builtin special form
- * car 4 : cdr .index of user function
- * car 5 : cdr .index of user special form
- * car 4 : cdr .index of user closure
+ * We look at the 3 left bits of type.
+ * This gives SEXPR_CONS, SEXPR_LITERAL, etc.
+ * For:
+ * SEXPR_CONS: bits(28..0) is index into cells.
+ * SEXPR_BUILTIN_FUNCTION: bits(28..0) is index into table of builtin
+ *                         functions.
+ * SEXPR_BUILTIN_SPECIAL: bits(28..0) is index into table of builtin
+ *                             special forms.
+ * SEXPR_FUNCTION and
+ * SEXPR_SPECIAL and
+ * SEXPR_CLOSURE: bits(28..0) is index into cells.
+ * SEXPR_NUMBER: bits(28..0) is index to a cell whose car is the floating
+ *               number (the cdr we don't care).
+ * SEXPR_LITERAL: bits(28..0) is index to a cell whose car is the pointer
+ *                to the struct literal (the cdr we don't care).
  */
 union sexpr {
-	int index;
 	int type;
 	float number;
 	LITERAL literal;
@@ -27,14 +31,14 @@ union sexpr {
 typedef union sexpr SEXPR;
 
 enum {
-	SEXPR_CONS,
-	SEXPR_LITERAL,
-	SEXPR_NUMBER,
-	SEXPR_BUILTIN_FUNCTION,
-	SEXPR_BUILTIN_SPECIAL,
-	SEXPR_FUNCTION,
-	SEXPR_SPECIAL,
-	SEXPR_CLOSURE,
+	SEXPR_CONS = 0 << 29,
+	SEXPR_LITERAL = 1 << 29,
+	SEXPR_NUMBER = 2 << 29,
+	SEXPR_BUILTIN_FUNCTION = 3 << 29,
+	SEXPR_BUILTIN_SPECIAL = 4 << 29,
+	SEXPR_FUNCTION = 5 << 29,
+	SEXPR_SPECIAL = 6 << 29,
+	SEXPR_CLOSURE = 7 << 29,
 };
 
 /* sexpr.c */
@@ -44,9 +48,9 @@ SEXPR make_literal(LITERAL lit);
 SEXPR make_number(float n);
 SEXPR make_builtin_function(int i);
 SEXPR make_builtin_special(int i);
-SEXPR make_function(SEXPR args_n_body);
-SEXPR make_special(SEXPR args_n_body);
-SEXPR make_closure(SEXPR lambda_n_alist);
+SEXPR make_function(int args_n_body);
+SEXPR make_special(int args_n_body);
+SEXPR make_closure(int lambda_n_alist);
 
 int sexpr_type(SEXPR e);
 int sexpr_index(SEXPR e);

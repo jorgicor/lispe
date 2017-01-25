@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <limits.h>
 
-static int s_debug = 1;
+static int s_debug = 0;
 
 static void gc(void);
 static void print(SEXPR sexpr);
@@ -87,6 +87,7 @@ static SEXPR s_true_atom;
 static SEXPR s_nil_atom;
 static SEXPR s_quote_atom;
 static SEXPR s_rest_atom;
+static SEXPR s_protected_literal;
 
 /* global environment */
 static SEXPR s_env;
@@ -178,41 +179,14 @@ static void cellp(int i, struct cell *pcell)
 	} while (0);
 #endif
 
-static int sexpr_is_pointer_to_cons_cell(SEXPR e)
-{
-	return e.index < 0;
-}
-
 int sexpr_type(SEXPR e)
 {
-	struct cell *pcell;
-
-	if (sexpr_is_pointer_to_cons_cell(e)) {
-		return SEXPR_CONS;
-	} else {
-		cellp(sexpr_index(e), pcell);
-		return pcell->car.type;
-	}
+	return e.type & 0xe0000000;
 }
 
 int sexpr_index(SEXPR e)
 {
-	return e.index & ~INT_MIN;
-}
-
-SEXPR sexpr_data_sexpr(SEXPR e)
-{
-	struct cell *pcell;
-
-	assert(!sexpr_is_pointer_to_cons_cell(e));
-	cellp(sexpr_index(e), pcell);
-	return pcell->cdr;
-}
-
-int sexpr_data_index(SEXPR e)
-{
-	e = sexpr_data_sexpr(e);
-	return sexpr_index(e);
+	return e.type & ~0xe0000000;
 }
 
 LITERAL sexpr_literal(SEXPR e)
@@ -220,8 +194,7 @@ LITERAL sexpr_literal(SEXPR e)
 	struct cell *pcell;
 
 	cellp(sexpr_index(e), pcell);
-	assert(pcell->car.type == SEXPR_LITERAL);
-	return pcell->cdr.literal;
+	return pcell->car.literal;
 }
 
 float sexpr_number(SEXPR e)
@@ -229,102 +202,92 @@ float sexpr_number(SEXPR e)
 	struct cell *pcell;
 
 	cellp(sexpr_index(e), pcell);
-	assert(pcell->car.type == SEXPR_NUMBER);
-	return pcell->cdr.number;
+	return pcell->car.number;
 }
 
 SEXPR make_cons(int i)
 {
 	SEXPR e;
 
-	e.index = INT_MIN | i;
-	return e;
-}
-
-static SEXPR make_non_cons(int i)
-{
-	SEXPR e;
-
-	e.index = i;
+	e.type = SEXPR_CONS | i;
 	return e;
 }
 
 SEXPR make_literal(LITERAL lit)
 {
+	SEXPR e;
 	int celli;
+	LITERAL litb;
+	struct cell *pcellb;
+	struct cell *pcell;
 
-	// TODO: protect_literal(lit)
+	/* Protect the literal from gc. */
+	celli = sexpr_index(s_protected_literal);
+	cellp(celli, pcellb);
+	litb = pcellb->car.literal;
+	pcellb->car.literal = lit;
+
+	/* Create the literal cell. */
 	celli = pop_free_cell();
-	// TODO: unprotect_literal(lit)
-	cells[celli].car.type = SEXPR_LITERAL;
-	cells[celli].cdr.literal = lit;
-	return make_non_cons(celli);
+	cellp(celli, pcell);
+	pcell->car.literal = lit;
+	e.type = SEXPR_LITERAL | celli;
+
+	/* Restore the previous protected literal (should be nil). */
+	pcellb->car.literal = litb;
+
+	return e;
 }
 
 SEXPR make_number(float n)
 {
+	SEXPR e;
 	int celli;
 
 	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_NUMBER;
-	cells[celli].cdr.number = n;
-	return make_non_cons(celli);
+	cells[celli].car.number = n;
+	e.type = SEXPR_NUMBER | celli;
+	return e;
 }
 
-SEXPR make_builtin_function(int i)
+SEXPR make_builtin_function(int table_index)
 {
-	int celli;
+	SEXPR e;
 
-	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_BUILTIN_FUNCTION;
-	cells[celli].cdr.index = i;
-	return make_non_cons(celli);
+	e.type = SEXPR_BUILTIN_FUNCTION | table_index;
+	return e;
 }
 
-SEXPR make_builtin_special(int i)
+SEXPR make_builtin_special(int table_index)
 {
-	int celli;
+	SEXPR e;
 
-	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_BUILTIN_SPECIAL;
-	cells[celli].cdr.index = i;
-	return make_non_cons(celli);
+	e.type = SEXPR_BUILTIN_SPECIAL | table_index;
+	return e;
 }
 
-SEXPR make_closure(SEXPR args_n_body)
+SEXPR make_closure(int celli)
 {
-	int celli;
+	SEXPR e;
 
-	s_cons_cdr = args_n_body;
-	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_CLOSURE;
-	cells[celli].cdr = args_n_body;
-	s_cons_cdr = s_nil_atom;
-	return make_non_cons(celli);
+	e.type = SEXPR_CLOSURE | celli;
+	return e;
 }
 
-SEXPR make_function(SEXPR args_n_body)
+SEXPR make_function(int celli)
 {
-	int celli;
+	SEXPR e;
 
-	s_cons_cdr = args_n_body;
-	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_FUNCTION;
-	cells[celli].cdr = args_n_body;
-	s_cons_cdr = s_nil_atom;
-	return make_non_cons(celli);
+	e.type = SEXPR_FUNCTION | celli;
+	return e;
 }
 
-SEXPR make_special(SEXPR args_n_body)
+SEXPR make_special(int celli)
 {
-	int celli;
+	SEXPR e;
 
-	s_cons_cdr = args_n_body;
-	celli = pop_free_cell();
-	cells[celli].car.type = SEXPR_SPECIAL;
-	cells[celli].cdr = args_n_body;
-	s_cons_cdr = s_nil_atom;
-	return make_non_cons(celli);
+	e.type = SEXPR_SPECIAL | celli;
+	return e;
 }
 
 /*********************************************************
@@ -456,7 +419,6 @@ static int pop_free_cell(void)
 	int i;
 
 	if (p_null(s_free_cells)) {
-		printf("o2\n");
 		gc();
 		if (p_null(s_free_cells)) {
 			printf("lisep: No more free cells.\n");
@@ -1295,17 +1257,17 @@ static SEXPR label(SEXPR e, SEXPR a)
 
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
-	return make_function(e);
+	return make_function(sexpr_index(e));
 }
 
 static SEXPR special(SEXPR e, SEXPR a)
 {
-	return make_special(e);
+	return make_special(sexpr_index(e));
 }
 
 static SEXPR closure(SEXPR e, SEXPR a)
 {
-	return make_closure(p_cons(e, a));
+	return make_closure(sexpr_index(p_cons(e, a)));
 }
 
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
@@ -1318,13 +1280,13 @@ static SEXPR body(SEXPR e, SEXPR a)
 	e = p_car(e);
 	switch (sexpr_type(e)) {
 	case SEXPR_CLOSURE:
-		cellp(sexpr_data_index(e), pcell);
+		cellp(sexpr_index(e), pcell);
 		e = pcell->car;
 		pop();
 		return e;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-		cellp(sexpr_data_index(e), pcell);
+		cellp(sexpr_index(e), pcell);
 		e = p_cons(pcell->car, pcell->cdr);
 		pop();
 		return e;
@@ -1523,12 +1485,12 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 #endif
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
-		return apply_builtin_function(sexpr_data_index(fn), x, a);
+		return apply_builtin_function(sexpr_index(fn), x, a);
 	case SEXPR_BUILTIN_SPECIAL:
-		return apply_builtin_special(sexpr_data_index(fn), x, a);
+		return apply_builtin_special(sexpr_index(fn), x, a);
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-		cellp(sexpr_data_index(fn), pcell);
+		cellp(sexpr_index(fn), pcell);
 		/* pair parameters with their arguments and append 'a */
 		/* a = push(p_pairlis(pcell->car, x, a)); */
 		/* pair parameters with their arguments and append 'a. */
@@ -1575,7 +1537,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			break;
 		case SEXPR_CLOSURE:
 			e1 = push(p_evlis(p_cdr(e), a));
-			cellp(sexpr_data_index(c), pcell);
+			cellp(sexpr_index(c), pcell);
 			c = p_apply(lambda(pcell->car, a), e1, pcell->cdr);
 			pop();
 			break;
@@ -1635,11 +1597,11 @@ static void print(SEXPR sexpr)
 		break;
 	case SEXPR_BUILTIN_FUNCTION:
 		printf("{builtin function %s}",
-			builtin_functions[sexpr_data_index(sexpr)].id);
+			builtin_functions[sexpr_index(sexpr)].id);
 		break;
 	case SEXPR_BUILTIN_SPECIAL:
 		printf("{builtin special %s}",
-			builtin_specials[sexpr_data_index(sexpr)].id);
+			builtin_specials[sexpr_index(sexpr)].id);
 		break;
 	case SEXPR_FUNCTION:
 		printf("{function}");
@@ -1712,10 +1674,21 @@ static void make_nil_atom(void)
 	LITERAL lit;
 
 	lit = new_literal("nil", 3);
-	cells[0].car.type = SEXPR_LITERAL;
-	cells[0].cdr.literal = lit;
+	cells[0].car.literal = lit;
 	mark_cell(0, CELL_CREATED);
-	s_nil_atom = make_non_cons(0);
+	s_nil_atom.type = SEXPR_LITERAL | 0;
+}
+
+/* Makes an atom s_protected_literal at cell 1.
+ * Points to the 'nil literal at start.
+ * We use by changing its pointed literal so that literal will be protected
+ * from gc.
+ */
+static void make_protected_literal(SEXPR nil_atom)
+{
+	cells[1].car.literal = sexpr_literal(nil_atom);
+	mark_cell(1, CELL_CREATED);
+	s_protected_literal.type = SEXPR_LITERAL | 1;
 }
 
 static void gc_mark(SEXPR e)
@@ -1733,20 +1706,9 @@ static void gc_mark(SEXPR e)
 		if_cell_mark(celli, CELL_CREATED, CELL_USED);
 		gc_mark_literal_used(sexpr_literal(e)); 
 		break;
-	case SEXPR_BUILTIN_FUNCTION:
-	case SEXPR_BUILTIN_SPECIAL:
-		celli = sexpr_index(e);
-		if_cell_mark(celli, CELL_CREATED, CELL_USED);
-		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 	case SEXPR_CLOSURE:
-		celli = sexpr_index(e);
-		cellp(celli, pcell);
-		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {
-			gc_mark(pcell->cdr);
-		}
-		break;
 	case SEXPR_CONS:
 		celli = sexpr_index(e);
 		cellp(celli, pcell);
@@ -1770,6 +1732,7 @@ static void gc(void)
 	gc_mark(s_stack);
 	gc_mark(s_cons_car);
 	gc_mark(s_cons_cdr);
+	gc_mark(s_protected_literal);
 
 	/* Return to s_free_cells those marked as CELL_CREATED and set
 	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
@@ -1826,6 +1789,7 @@ int main(int argc, char* argv[])
 	       	NCELLMARK * sizeof(s_cellmarks[0]));
 
 	make_nil_atom();
+	make_protected_literal(s_nil_atom);
 	s_stack = s_nil_atom;
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
@@ -1833,11 +1797,12 @@ int main(int argc, char* argv[])
 	/* link cells for the free cells list */
 	cells[NCELL - 1].car = s_nil_atom;
 	cells[NCELL - 1].cdr = s_nil_atom;
-	for (i = 1; i < NCELL - 1; i++) {
+	/* skip nil atom cell and protected literal atom */
+	for (i = 2; i < NCELL - 1; i++) {
 		cells[i].car = s_nil_atom;
 		cells[i].cdr = make_cons(i + 1);
 	}
-	s_free_cells = make_cons(1);
+	s_free_cells = make_cons(2);
 
 	s_env = s_nil_atom;
 	s_hidenv = s_nil_atom;
@@ -1845,7 +1810,6 @@ int main(int argc, char* argv[])
 	install_builtin_functions();
 	install_builtin_specials();
 
-	printf("load\n");
 	load_init_file();
 
 	/* REPL */
