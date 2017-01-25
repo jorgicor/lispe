@@ -1,3 +1,5 @@
+(setq else t)
+
 (setq listp (lambda (p)
     (cond ((null p) t)
 	  ((consp p) t)
@@ -13,6 +15,9 @@
     (cond ((null b) t)
 	  ((eq b t) t)
 	  (t nil))))
+
+(setq begin (special (&rest)
+      (eval (cons (cons 'lambda (cons nil &rest)) nil))))
 
 (setq map (lambda (fn p)
     (cond ((null p) nil)
@@ -49,12 +54,53 @@
            )
 	   (t (cons (car p) (append (cdr p) q))))))
 
-(setq and (special (p)
-    ((lambda andlis (q)
-        (cond ((null q) t)
+(setq let (special (varlist &rest)
+    (eval (cons
+	    (cons 'lambda (cons (map car varlist) &rest))
+	    (map cadr varlist)))))
+
+(setq unev-let (special (varlist &rest)
+    (cons
+	    (cons 'lambda (cons (map car varlist) &rest))
+	    (map cadr varlist))))
+
+(setq and (special (&rest)
+    (eval (unev-let ((andlis nil))
+      (setq andlis (lambda (q)
+	(cond ((null q) t)
 	      ((null (car q)) nil)
-	      (t (andlis (cdr q)))))
-     (evlis p))))
+	      ((null (cdr q)) (car q))
+	      (t (andlis (cdr q))))))
+      (andlis &rest)))))
+
+(setq or (special (&rest)
+    (eval (unev-let ((orlis nil))
+      (setq orlis (lambda (q)
+	(cond ((null q) nil)
+	      ((not (null (car q))) (car q))
+	      (t (orlis (cdr q))))))
+      (orlis &rest)))))
+
+(setq <= (lambda (a &rest) 
+    (eval (unev-let ((lesseq nil))
+        (setq lesseq (lambda (a q)
+            (cond ((null q) t)
+		  ((eq a (car q)) (lesseq (car q) (cdr q)))
+		  ((< a (car q)) (lesseq (car q) (cdr q)))
+		  (t nil))))
+        (lesseq a &rest)))))
+
+(setq >= (lambda (a &rest) 
+    (eval (unev-let ((greatereq nil))
+        (setq greatereq (lambda (a q)
+            (cond ((null q) t)
+		  ((eq a (car q)) (greatereq (car q) (cdr q)))
+		  ((> a (car q)) (greatereq (car q) (cdr q)))
+		  (t nil))))
+        (greatereq a &rest)))))
+
+(setq inc (special (var)
+    (eval (list 'setq var (list '+ 1 var)))))
 
 (setq set (lambda (x y)
     (eval (list 'setq x 'y))))
@@ -66,18 +112,57 @@
     (cond ((eq n 0) 1)
 	  (t (* n (fact (- n 1)))))))
 
-(setq let (special (varlist forms)
-    (eval (cons
-	    (list 'lambda (map car varlist) forms)
-	    (map cadr varlist)))))
-
-(setq maplist (lambda (x fn)
-    (cond ((null x) nil)
-	  (t (cons (fn x) (maplist (cdr x) fn))))))
-
 (setq make-counter (lambda (value)
     (closure () (setq value (+ value 1)))))
 
 (setq make-balance (lambda (balance)
     (closure (amount) (setq balance (- balance amount)))))
+
+(setq sqrt2 (lambda (x)
+    (let ((abs nil)
+	  (average nil)
+	  (square nil)
+	  (good-enough? nil)
+	  (improve nil)
+	  (sqrt-iter nil))
+      (setq abs (lambda (n) (cond ((< n 0) (- n)) (t n))))
+      (setq average (lambda (x y) (/ (+ x y) 2)))
+      (setq square (lambda (n) (* n n)))
+      (setq good-enough? (lambda (guess)
+			    (< (abs (- (square guess) x)) (/ 1 100))))
+      (setq improve (lambda (guess) (average guess (/ x guess))))
+      (setq sqrt-iter (lambda (guess)
+			 (cond ((good-enough? guess) guess)
+			       (t (sqrt-iter (improve guess))))))
+      (sqrt-iter 1))))
+
+(setq sqrt (lambda (x)
+    ((lambda (abs average square good-enough? improve sqr-iter)
+       (setq abs (lambda (n) (cond ((< n 0) (- n)) (t n))))
+       (setq average (lambda (x y) (/ (+ x y) 2)))
+       (setq square (lambda (n) (* n n)))
+       (setq good-enough? (lambda (guess)
+			    (< (abs (- (square guess) x)) (/ 1 100))))
+       (setq improve (lambda (guess) (average guess (/ x guess))))
+       (setq sqrt-iter (lambda (guess)
+			 (cond ((good-enough? guess) guess)
+			       (t (sqrt-iter (improve guess))))))
+       (sqrt-iter 1)) nil nil nil nil nil nil)))
+
+(setq define (special (a &rest)
+      (eval
+          (cond ((symbolp a) (list 'setq a (car &rest)))
+	        (t (list 'setq (car a)
+			 (cons 'lambda (cons (cdr a) &rest))))))))
+
+(define (cons2 x y)
+  (let ((dispatch nil))
+    (setq dispatch (closure (m)
+			    (cond ((eq m 0) x)
+				  ((eq m 1) y)
+				  (t 'error))))
+    dispatch))
+
+(setq nil! (special (x)
+    (eval (list 'setq x nil))))
 

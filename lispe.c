@@ -53,7 +53,7 @@ enum {
 };
 
 enum {
-	NCELL = 1000,
+	NCELL = 2000,
 };
 
 struct cell {
@@ -80,9 +80,13 @@ static jmp_buf buf;
 
 static SEXPR s_true_atom;
 static SEXPR s_nil_atom;
+static SEXPR s_quote_atom;
+static SEXPR s_rest_atom;
 
 /* global environment */
 static SEXPR s_env;
+/* hidden environment, used to not gc quote, &rest, etc. */
+static SEXPR s_hidenv;
 
 /* current computation stack */
 static SEXPR s_stack;
@@ -383,6 +387,52 @@ static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
 		return a;
 	}
 #endif
+}
+
+/* Given two lists, 'x and 'y, returns a list with pairs of each list, i.e.:
+ * (A B) (C D) -> ((A C) (B D))
+ * and adds it to the start of the list 'a.
+ * The list 'x must contain symbols.
+ * The list 'x can be shorter than 'y; in that case, if the last element of 'x
+ * is the symbol &rest, it will be paired with a list containing the remaining
+ * elements of 'y.
+ */
+static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
+{
+	SEXPR head, node, node2;
+
+	if (p_null(x))
+		return a;
+
+	/* Handle the case of only one parameter called &rest */
+	if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
+		node = push(p_cons(p_cons(p_car(x), y), s_nil_atom));
+		p_setcdr(node, a);
+		pop();
+		return node;
+	}
+
+	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
+	node = head;
+	x = p_cdr(x);
+	y = p_cdr(y);
+	while (!p_null(x)) {
+		if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
+			node2 = p_cons(p_cons(p_car(x), y), s_nil_atom);
+			p_setcdr(node, node2);
+			node = node2;
+		} else {
+			node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
+			p_setcdr(node, node2);
+			node = node2;
+			y = p_cdr(y);
+		}
+		x = p_cdr(x);
+	}
+	p_setcdr(node, a);
+	pop();
+
+	return head;
 }
 
 struct builtin {
@@ -705,7 +755,7 @@ static SEXPR parse_quote(struct parser *p, int *errorc)
 		return s_nil_atom;
 
 	sexpr = push(p_cons(sexpr, s_nil_atom));
-	sexpr = p_cons(make_literal(new_literal("quote", 5)), sexpr);
+	sexpr = p_cons(s_quote_atom, sexpr);
 	pop();
 	return sexpr;
 }
@@ -1097,7 +1147,6 @@ static SEXPR special(SEXPR e, SEXPR a)
 static SEXPR closure(SEXPR e, SEXPR a)
 {
 	return make_closure(sexpr_index(p_cons(e, a)));
-	// return make_closure(sexpr_index(p_cons(p_car(e), a)));
 }
 
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
@@ -1117,7 +1166,7 @@ static SEXPR body(SEXPR e, SEXPR a)
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(e), pcell);
-		e = p_cons(pcell->car, p_car(pcell->cdr));
+		e = p_cons(pcell->car, pcell->cdr);
 		pop();
 		return e;
 	case SEXPR_BUILTIN_FUNCTION:
@@ -1142,19 +1191,15 @@ static SEXPR equal(SEXPR e, SEXPR a)
 		return s_nil_atom;
 }
 
-/* eval each list member.
- * TODO: can be made non-recursive? 
- */
+/* eval each list member.  */
 static SEXPR p_evlis(SEXPR m, SEXPR a)
 {
-#if 1
 	SEXPR head, node, node2;
 	
 	if (p_null(m))
 		return m;
 
 	head = push(p_cons(p_eval(p_car(m), a), s_nil_atom));
-
 	node = head;
 	m = p_cdr(m);
 	while (!p_null(m)) {
@@ -1165,19 +1210,6 @@ static SEXPR p_evlis(SEXPR m, SEXPR a)
 	}
 	pop();
 	return head;
-#else
-	/* recursive version */
-	SEXPR e1;
-
-	if (p_null(m)) {
-		return m;
-	} else {
-		e1 = push(p_eval(p_car(m), a));
-		e1 = p_cons(e1, p_evlis(p_cdr(m), a));
-		pop();
-		return e1;
-	}
-#endif
 }
 
 /* eval COND */
@@ -1192,6 +1224,7 @@ static SEXPR p_evcon(SEXPR c, SEXPR a)
 	}
 }
 
+#if 0
 static SEXPR first_frame(SEXPR env)
 {
 	return p_car(env);
@@ -1314,6 +1347,7 @@ static SEXPR extend_environment(SEXPR vars, SEXPR vals, SEXPR base_env)
 	/* error */
 	return base_env;
 }
+#endif
 
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 {
@@ -1336,7 +1370,10 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(fn), pcell);
-		a = push(p_pairlis(pcell->car, x, a));
+		/* pair parameters with their arguments and append 'a */
+		/* a = push(p_pairlis(pcell->car, x, a)); */
+		/* pair parameters with their arguments and append 'a. */
+		a = push(p_pairargs(pcell->car, x, a));
 		e1 = pcell->cdr;
 		while (!p_null(e1)) {
 			r = p_eval(p_car(e1), a);
@@ -1499,6 +1536,12 @@ static void install_literals(void)
 
 	s_true_atom = make_literal(new_literal("t", 1));
 	s_env = p_add(s_true_atom, s_true_atom, s_env);
+
+	s_quote_atom = make_literal(new_literal("quote", 5));
+	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
+
+	s_rest_atom = make_literal(new_literal("&rest", 5));
+	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
 static void make_nil_atom(void)
@@ -1541,6 +1584,7 @@ static void gc(void)
 	struct cell *pcell;
 
 	/* Mark used. */
+	gc_mark(s_hidenv);
 	gc_mark(s_env);
 	gc_mark(s_stack);
 	gc_mark(s_cons_car);
@@ -1615,6 +1659,7 @@ int main(int argc, char* argv[])
 	s_free_cells = make_cons(0);
 
 	s_env = s_nil_atom;
+	s_hidenv = s_nil_atom;
 	install_literals();
 	install_builtin_functions();
 	install_builtin_specials();
