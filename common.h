@@ -5,17 +5,26 @@
 
 typedef struct literal * LITERAL;
 
-/* literal will be 4 bytes on 32 bit systems, and 8 on 64 bit systems! */
-struct sexpr {
-	signed char type;
-	union {
-		LITERAL literal;
-		float number;
-		int index;
-	} data;
+/*
+ * .index is 0xxxx... : xxx... cons cell index.
+ *           1xxxx... : xxx... index of cell with atom inside.
+ * cells containing atoms:
+ * car 0 : cdr .literal pointer to literal
+ * car 1 : cdr .float number
+ * car 2 : cdr .index of builtin function
+ * car 3 : cdr .index of builtin special form
+ * car 4 : cdr .index of user function
+ * car 5 : cdr .index of user special form
+ * car 4 : cdr .index of user closure
+ */
+union sexpr {
+	int index;
+	int type;
+	float number;
+	LITERAL literal;
 };
 
-typedef struct sexpr SEXPR;
+typedef union sexpr SEXPR;
 
 enum {
 	SEXPR_CONS,
@@ -35,9 +44,9 @@ SEXPR make_literal(LITERAL lit);
 SEXPR make_number(float n);
 SEXPR make_builtin_function(int i);
 SEXPR make_builtin_special(int i);
-SEXPR make_function(int args_n_body);
-SEXPR make_special(int args_n_body);
-SEXPR make_closure(int lambda_n_alist);
+SEXPR make_function(SEXPR args_n_body);
+SEXPR make_special(SEXPR args_n_body);
+SEXPR make_closure(SEXPR lambda_n_alist);
 
 int sexpr_type(SEXPR e);
 int sexpr_index(SEXPR e);
