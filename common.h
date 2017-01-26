@@ -25,7 +25,7 @@ typedef struct literal * LITERAL;
 union sexpr {
 	int type;
 	float number;
-	LITERAL literal;
+	const char *name;
 };
 
 typedef union sexpr SEXPR;
@@ -44,7 +44,7 @@ enum {
 /* sexpr.c */
 
 SEXPR make_cons(int i);
-SEXPR make_literal(LITERAL lit);
+SEXPR make_literal(const char *s, int len);
 SEXPR make_number(float n);
 SEXPR make_builtin_function(int i);
 SEXPR make_builtin_special(int i);
@@ -56,13 +56,5 @@ int sexpr_type(SEXPR e);
 int sexpr_index(SEXPR e);
 LITERAL sexpr_literal(SEXPR e);
 float sexpr_number(SEXPR e);
-
-/* symtab */
-
-LITERAL new_literal(const char *name, int len);
-const char *literal_name(LITERAL lit);
-int literals_equal(LITERAL lita, LITERAL litb);
-void gc_literals(void);
-void gc_mark_literal_used(LITERAL lit);
 
 #endif

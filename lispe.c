@@ -87,7 +87,6 @@ static SEXPR s_true_atom;
 static SEXPR s_nil_atom;
 static SEXPR s_quote_atom;
 static SEXPR s_rest_atom;
-static SEXPR s_protected_literal;
 
 /* global environment */
 static SEXPR s_env;
@@ -159,7 +158,7 @@ static int if_cell_mark(int i, int ifmark, int thenmark)
 }
 
 /*********************************************************
- * Making s-expressions.
+ * Hash table for literals.
  *********************************************************/
 
 /* Get the cell at index i into pcell. Range checking. */
@@ -179,6 +178,187 @@ static void cellp(int i, struct cell *pcell)
 	} while (0);
 #endif
 
+/* prime */
+enum { NCHAINS = 16381 };
+
+/*
+ * next: next in hash table.
+ * celli: index of literal cell (car: name, cdr: nil)
+ */
+struct literal {
+	struct lit_hasht_head *next;
+	int celli;
+	char name[];
+};
+
+/* struct lit_hasht_head is a subtype of struct literal, that is:
+ * struct literal *lit;
+ * struct lit_hasht_head *h;
+ * h = (struct lit_hasht_head *) lit;
+ */
+struct lit_hasht_head {
+	struct lit_hasht_head *next;
+};
+
+static struct lit_hasht_head s_hashtab[NCHAINS];
+
+/* Compares a string 'src of length 'len (not null terminated) with a
+ * null terminated string 'cstr.
+ */
+static int cmpstrlen(const char *src, int len, const char *cstr)
+{
+	int i;
+
+	for (i = 0; i < len && *cstr != '\0'; i++) {
+		if (src[i] < *cstr)
+			return -1;
+		else if (src[i] > *cstr)
+			return 1;
+		else
+			cstr++;
+	}
+
+	if (i == len && *cstr == 0)
+		return 0;
+	else if (i == len)
+		return -1;
+	else
+		return 1;
+}
+
+/* Hash the string in 'p of length 'len. */
+static unsigned int hash(const char *p, size_t len)
+{
+	unsigned int h;
+
+	h = 0;
+	while (len--) {
+		h = 31 * h + (unsigned char) *p;
+		p++;
+	}
+
+	return h;
+}
+
+SEXPR make_literal(const char *s, int len)
+{
+	SEXPR e;
+	int celli;
+	unsigned int h;
+	struct lit_hasht_head *q;
+	struct literal *p;
+	struct cell *pcell;
+
+	h = hash(s, len) % NCHAINS;
+	for (q = s_hashtab[h].next; q != NULL; q = q->next) {
+		p = (struct literal *) q;
+		if (cmpstrlen(s, len, p->name) == 0) {
+			e.type = SEXPR_LITERAL | p->celli;
+			return e;
+		}
+	}
+
+	celli = pop_free_cell();
+
+	p = malloc(sizeof(*p) + len + 1);
+	if (p == NULL) {
+		fprintf(stderr, "lispe: out of memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	memcpy(p->name, s, len);
+	p->name[len] = '\0';
+	p->celli = celli;
+
+	p->next = s_hashtab[h].next;
+	s_hashtab[h].next = (struct lit_hasht_head *) p;
+
+	cellp(celli, pcell);
+	pcell->car.name = p->name;
+	pcell->cdr = s_nil_atom;
+	mark_cell(celli, CELL_CREATED);
+	e.type = SEXPR_LITERAL | celli;
+	return e;
+}
+
+/* special case because the cells are not linked. */
+static void make_nil_atom(void)
+{
+	const char *s;
+	int len, celli;
+	unsigned int h;
+	struct literal *p;
+	struct cell *pcell;
+
+	s = "nil";
+	len = 3;
+	h = hash(s, len) % NCHAINS;
+	celli = 0;
+
+	p = malloc(sizeof(*p) + len + 1);
+	if (p == NULL) {
+		fprintf(stderr, "lispe: out of memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	memcpy(p->name, s, len);
+	p->name[len] = '\0';
+	p->celli = celli;
+
+	p->next = s_hashtab[h].next;
+	s_hashtab[h].next = (struct lit_hasht_head *) p;
+
+	cellp(celli, pcell);
+	pcell->car.name = p->name;
+	pcell->cdr = s_nil_atom;
+	mark_cell(celli, CELL_CREATED);
+
+	s_nil_atom.type = SEXPR_LITERAL | celli;
+}
+
+const char *sexpr_name(SEXPR lit)
+{
+	struct cell *pcell;
+
+	cellp(sexpr_index(lit), pcell);
+	return pcell->car.name;
+}
+
+int literals_equal(SEXPR lita, SEXPR litb)
+{
+	return lita.type == litb.type;
+}
+
+void gc_literals(void)
+{
+	int i, freed;
+	struct lit_hasht_head *prev, *p, *q;
+	struct literal *plit;
+
+	freed = 0;
+	for (i = 0; i < NCHAINS; i++) {
+		for (prev = &s_hashtab[i], p = prev->next;
+		     p != NULL;
+		     prev = p, p = prev->next)
+		{
+			plit = (struct literal *) p;
+			if (cell_mark(plit->celli) == CELL_CREATED) {
+				freed++;
+				printf("freed (%s)\n", plit->name);
+				prev->next = p->next;
+				free(p);
+				p = prev;
+			}
+		}
+	}
+
+	printf("[freed literals %d]\n", freed);
+}
+
+/*********************************************************
+ * Making s-expressions.
+ *********************************************************/
+
 int sexpr_type(SEXPR e)
 {
 	return e.type & 0xe0000000;
@@ -187,14 +367,6 @@ int sexpr_type(SEXPR e)
 int sexpr_index(SEXPR e)
 {
 	return e.type & ~0xe0000000;
-}
-
-LITERAL sexpr_literal(SEXPR e)
-{
-	struct cell *pcell;
-
-	cellp(sexpr_index(e), pcell);
-	return pcell->car.literal;
 }
 
 float sexpr_number(SEXPR e)
@@ -210,32 +382,6 @@ SEXPR make_cons(int i)
 	SEXPR e;
 
 	e.type = SEXPR_CONS | i;
-	return e;
-}
-
-SEXPR make_literal(LITERAL lit)
-{
-	SEXPR e;
-	int celli;
-	LITERAL litb;
-	struct cell *pcellb;
-	struct cell *pcell;
-
-	/* Protect the literal from gc. */
-	celli = sexpr_index(s_protected_literal);
-	cellp(celli, pcellb);
-	litb = pcellb->car.literal;
-	pcellb->car.literal = lit;
-
-	/* Create the literal cell. */
-	celli = pop_free_cell();
-	cellp(celli, pcell);
-	pcell->car.literal = lit;
-	e.type = SEXPR_LITERAL | celli;
-
-	/* Restore the previous protected literal (should be nil). */
-	pcellb->car.literal = litb;
-
 	return e;
 }
 
@@ -306,8 +452,7 @@ static int p_numberp(SEXPR e)
 
 static int p_null(SEXPR e)
 {
-	return sexpr_type(e) == SEXPR_LITERAL &&
-		literals_equal(sexpr_literal(e), sexpr_literal(s_nil_atom));
+	return sexpr_type(e) == SEXPR_LITERAL && literals_equal(e, s_nil_atom);
 }
 
 /* TODO: atom x = not (consp x) ?? */
@@ -326,7 +471,7 @@ static int p_eq(SEXPR x, SEXPR y)
 	if (p_null(x) && p_null(y)) {
 		return 1;
 	} else if (p_symbolp(x) && p_symbolp(y)) {
-		return literals_equal(sexpr_literal(x), sexpr_literal(y));
+		return literals_equal(x, y);
 	} else if (p_numberp(x) && p_numberp(y)) {
 		return sexpr_number(x) == sexpr_number(y);
 	} else {
@@ -885,15 +1030,14 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 {
 	struct token *tok;
 	SEXPR sexpr;
-	LITERAL lit;
 
 	tok = peek_token(p->tokenizer);
 	if (tok->type == EOF) {
 		*errorc = ERRORC_EOF;
 		return s_nil_atom;
 	} else if (tok->type == T_ATOM) {	
-		lit = new_literal(tok->value.atom.name, tok->value.atom.len);
-		sexpr = make_literal(lit);
+		sexpr = make_literal(tok->value.atom.name,
+			       	     tok->value.atom.len);
 		if (p->sp > 0) {
 			pop_token(p->tokenizer);
 		}
@@ -1491,8 +1635,6 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(fn), pcell);
-		/* pair parameters with their arguments and append 'a */
-		/* a = push(p_pairlis(pcell->car, x, a)); */
 		/* pair parameters with their arguments and append 'a. */
 		a = push(p_pairargs(pcell->car, x, a));
 		e1 = pcell->cdr;
@@ -1557,6 +1699,391 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 	}
 }
 
+#if 0
+void op_run(void)
+{
+	while (op != NULL)
+		(*op)();
+}
+
+/* in: s_proc, s_args, s_alist
+ * out: s_val
+ */
+void op_apply(void)
+{
+	switch (sexpr_type(s_proc)) {
+	case SEXPR_BUILTIN_FUNCTION:
+		s_val = apply_builtin_function(sexpr_index(s_proc), s_args,
+					       s_alist);
+		op = s_cont;
+		break;
+	case SEXPR_BUILTIN_SPECIAL:
+		s_val = apply_builtin_special(sexpr_index(s_proc), s_args,
+					      s_alist);
+		op = s_cont;
+		break;
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
+		push(s_cont);
+		push(s_alist);
+		cellp(sexpr_index(s_proc), pcell);
+		s_unev = pcell->cdr;
+		push(s_unev);
+		s_params = pcell->car;
+		s_cont = op_eval_sequence;
+		op = op_pairargs;
+		/*
+		s_alist = p_pairargs(pcell->car, s_args, s_alist);
+		e1 = pcell->cdr;
+		while (!p_null(e1)) {
+			r = p_eval(p_car(e1), a);
+			e1 = p_cdr(e1);
+		}
+		pop();
+		*/
+		break;
+	default:
+		throw_err();
+	}
+}
+
+/* in: s_params, s_args, s_alist */
+void op_pairargs(void)
+{
+	if (p_null(p_params)) {
+		op = s_cont;
+		return;
+	}
+}
+
+void op_eval_sequence(void)
+{
+	s_unev = pop();
+	if (p_null(s_unev)) {
+		s_alist = pop();
+		s_cont = pop();
+		op = s_cont;
+	} else {
+		s_expr = p_car(s_unev);
+		s_unev = p_cdr(s_unev);
+		push(s_unev);
+		op = op_eval;
+	}
+}
+
+enum {
+	OP_END,
+	OP_EVAL,
+	OP_EVAL_CONS_CAR,
+	OP_EVAL_AFTER_EVLIS,
+	OP_EVLIS,
+	OP_EVLIS_FIRST,
+	OP_EVLIS_LOOP,
+	OP_APPLY,
+};
+
+/* 
+ * in: s_expr, s_alist
+ * out: s_val
+ */
+void exec*******(int op)
+{
+	int t;
+
+	s_cont = OP_END;
+	switch (op) {
+	
+	case OP_END:
+
+		return;
+
+	case OP_EVAL:
+
+	t = sexpr_type(s_expr);
+	if (t == SEXPR_NUMBER) {
+		s_val = s_expr;
+		goto s_cont;
+	} else if (t == SEXPR_LITERAL) {
+		s_val = p_assoc(s_expr, s_alist);
+		if (p_null(s_val)) {
+			s_val = p_assoc(s_expr, s_env);
+		}
+		s_val = p_cdr(s_val);
+		goto s_cont;
+	} else if (t == SEXPR_CONS) {
+		push(s_cont);
+		s_unev = p_cdr(s_expr);
+		push(s_unev);
+		s_expr = p_car(s_expr);
+		s_cont = OP_EVAL_CONS_CAR;
+		goto OP_EVAL;
+		case OP_EVAL_CONS_CAR:
+		s_unev = pop();
+		s_proc = s_val;
+		t = sexpr_type(s_proc);
+		if (t == SEXPR_BUILTIN_SPECIAL || t == SEXPR_SPECIAL) {
+			s_args = s_unev;
+			s_cont = pop();
+			goto OP_APPLY;
+		} else if (t == SEXPR_CLOSURE) {
+			push(s_proc);
+			s_cont = OP_EVAL_CLOSURE_AFTER_EVIS;
+			goto OP_EVLIS;
+			case OP_EVAL_CLOSURE_AFTER_EVLIS;
+			s_proc = pop();
+			cellp(sexpr_index(s_proc), pcell);
+			s_proc = lambda(pcell->car, s_alist);
+			push(s_alist);
+			s_alist = pcell->cdr;
+			s_cont = OP_EVAL_AFTER_APPLY_CLOSURE;
+			goto OP_APPLY;
+			case OP_EVAL_AFTER_APPLY_CLOSURE:
+			s_alist = pop();
+			s_cont = pop();
+			goto s_cont;
+		} else {
+			push(s_proc);
+			s_cont = OP_EVAL_AFTER_EVLIS;
+			goto OP_EVLIS;
+			case OP_EVAL_AFTER_EVLIS:
+			s_proc = pop();
+			s_cont = pop();
+			goto OP_APPLY;
+		}
+	} else {
+		throw_err();
+	}
+
+	case OP_EVLIS:
+
+	s_args = s_nil_atom;
+	if (p_null(s_unev))
+		goto s_cont;
+
+	push(s_cont);
+	s_expr = p_car(s_unev);
+	s_unev = p_cdr(s_unev);
+	push(s_unev);
+	s_cont = OP_EVLIS_FIRST;
+	goto OP_EVAL;
+	case OP_EVLIS_FIRST:
+	s_unev = pop();
+	s_args = p_cons(s_val, s_nil_atom);
+	s_argnode = s_args;
+	if (p_null(s_unev)) {
+		s_cont = pop();
+		goto s_cont;
+	} else {
+		push(s_args);
+		push(s_argnode);
+		s_expr = p_car(s_unev);
+		s_unev = p_cdr(s_unev);
+		push(s_unev);
+		s_cont = OP_EVLIS_LOOP;
+		goto OP_EVAL;
+		case OP_EVLIS_LOOP:
+		s_unev = pop();
+		s_argnode = pop();
+		s_val = p_cons(s_val, s_nil_atom);
+		p_setcdr(s_argnode, s_val);
+		s_argnode = s_val;
+		if (p_null(s_unev)) {
+			s_args = pop();
+			s_cont = pop();
+			goto s_cont;
+		} else {
+			push(s_argnode);
+			s_expr = p_car(s_unev);
+			s_unev = p_cdr(s_unev);
+			push(s_unev);
+			goto OP_EVAL;
+		}
+	}
+
+	case OP_APPLY:
+
+	t = sexpr_type(s_proc);
+	if ( t == SEXPR_BUILTIN_FUNCTION) {
+		s_val = apply_builtin_function(sexpr_index(s_proc), s_args,
+					       s_alist);
+		goto s_cont;
+	} else if (t == SEXPR_BUILTIN_SPECIAL) {
+		s_val = apply_builtin_special(sexpr_index(s_proc), s_args,
+					      s_alist);
+		goto s_cont;
+	} else if (t == SEXPR_FUNCTION || t == SEXPR_SPECIAL) {
+		push(s_cont);
+		push(s_alist);
+		cellp(sexpr_index(s_proc), pcell);
+		s_unev = pcell->cdr;
+		push(s_unev);
+		s_params = pcell->car;
+		s_cont = OP_EVAL_SEQUENCE;
+		/* PAIRARGS */
+		/* s_alist = p_pairargs(pcell->car, s_args, s_alist); */
+		case OP_EVAL_SEQUENCE:
+		s_unev = pop();
+		if (p_null(s_unev)) {
+			s_alist = pop();
+			s_cont = pop();
+			goto s_cont;
+		} else {
+			s_expr = p_car(s_unev);
+			s_unev = p_cdr(s_unev);
+			push(s_unev);
+			goto OP_EVAL;
+		}
+	} else {
+		throw_err();
+	}
+
+	default:
+		throw_err();
+	}
+}
+
+/* in: s_expr, s_alist, s_cont
+ * out: s_val
+ */
+void op_eval(void)
+{
+	switch (sexpr_type(s_expr)) {
+	case SEXPR_NUMBER:
+		s_val = s_expr;
+		s_op = s_cont;
+		break;
+	case SEXPR_LITERAL:
+		s_val = p_assoc(s_expr, s_alist);
+		if (p_null(s_val)) {
+			s_val = p_assoc(s_expr, s_env);
+		}
+		s_val = p_cdr(s_val);
+		s_op = s_cont;
+		break;
+	case SEXPR_CONS:
+		push(s_cont);
+		s_unev = p_cdr(s_expr);
+		push(s_unev);
+		s_expr = p_car(s_expr);
+		s_cont = op_eval_cons_car;
+		op = eval;
+		break;
+	default:
+		throw_err();
+	}
+}
+
+/* in: s_val (evaluated operator) */
+void op_eval_cons_car(void)
+{
+	s_unev = pop();
+	s_proc = s_val;
+	switch (sexpr_type(s_proc)) {
+	case SEXPR_BUILTIN_SPECIAL:
+	case SEXPR_SPECIAL:
+		s_args = s_unev;
+		s_cont = pop();
+		op = op_apply;
+		return;
+	case SEXPR_CLOSURE:
+		push(s_proc);
+		s_op = op_evlis;
+		s_cont = op_eval_closure_after_evlis;
+		break;
+	default:
+		push(s_proc);
+		s_op = op_evlis;
+		s_cont = op_eval_after_evlis;
+	}
+}
+
+/* in: s_args */
+void op_eval_after_evlis(void)
+{
+	s_proc = pop();
+	s_cont = pop();
+	op = op_apply;
+}
+
+/* in: s_args */
+void op_eval_closure_after_evlis(void)
+{
+	s_proc = pop();
+	cellp(sexpr_index(s_proc), pcell);
+	s_proc = lambda(pcell->car, s_alist);
+	push(s_alist);
+	s_alist = pcell->cdr;
+	s_cont = op_eval_after_apply_closure;
+	op = op_apply;
+}
+
+/* A closure has been applied, s_alist was on the stack... */
+void op_eval_after_apply_closure(void)
+{
+	s_alist = pop();
+	s_cont = pop();
+	op = s_cont;
+}
+
+/* in: s_unev, s_alist
+ * out: s_args
+ */
+void op_evlis(void)
+{
+	s_args = s_nil_atom;
+	if (p_null(s_unev)) {
+		op = s_cont;
+		return;
+	}
+
+	push(s_cont);
+	s_expr = p_car(s_unev);
+	s_unev = p_cdr(s_unev);
+	push(s_unev);
+	s_cont = op_evlis_first;
+	op = op_eval;
+}
+
+void op_evlis_first(void)
+{
+	s_unev = pop();
+	s_args = p_cons(s_val, s_nil_atom);
+	s_argnode = s_args;
+	if (p_null(s_unev)) {
+		s_cont = pop();
+		s_op = s_cont;
+	} else {
+		push(s_args);
+		push(s_argnode);
+		s_expr = p_car(s_unev);
+		s_unev = p_cdr(s_unev);
+		push(s_unev);
+		s_cont = op_evlis_loop;
+		s_op = op_eval;
+	}
+}
+
+void op_evlis_loop(void)
+{
+	s_unev = pop();
+	s_argnode = pop();
+	s_val = p_cons(s_val, s_nil_atom);
+	p_setcdr(s_argnode, s_val);
+	s_argnode = s_val;
+	if (p_null(s_unev)) {
+		s_args = pop();
+		s_cont = pop();
+		s_op = s_cont;
+	} else {
+		push(s_argnode);
+		s_expr = p_car(s_unev);
+		s_unev = p_cdr(s_unev);
+		push(s_unev);
+		s_op = op_eval;
+	}
+}
+#endif
+
 static SEXPR eval(SEXPR e, SEXPR a)
 {
 	e = push(p_eval(p_car(e), a));
@@ -1590,7 +2117,7 @@ static void print(SEXPR sexpr)
 		printf(")");
 		break;
 	case SEXPR_LITERAL:
-		printf("%s", literal_name(sexpr_literal(sexpr)));
+		printf("%s", sexpr_name(sexpr));
 		break;
 	case SEXPR_NUMBER:
 		printf("%g", sexpr_number(sexpr));
@@ -1631,7 +2158,7 @@ static void install_builtin(const char *name, SEXPR e)
 {
 	SEXPR var;
 
-	var = make_literal(new_literal(name, strlen(name)));
+	var = make_literal(name, strlen(name));
 	s_env = p_add(var, e, s_env);
 }
 
@@ -1659,36 +2186,14 @@ static void install_literals(void)
 {
 	s_env = p_add(s_nil_atom, s_nil_atom, s_env);
 
-	s_true_atom = make_literal(new_literal("t", 1));
+	s_true_atom = make_literal("t", 1);
 	s_env = p_add(s_true_atom, s_true_atom, s_env);
 
-	s_quote_atom = make_literal(new_literal("quote", 5));
+	s_quote_atom = make_literal("quote", 5);
 	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
 
-	s_rest_atom = make_literal(new_literal("&rest", 5));
+	s_rest_atom = make_literal("&rest", 5);
 	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
-}
-
-static void make_nil_atom(void)
-{
-	LITERAL lit;
-
-	lit = new_literal("nil", 3);
-	cells[0].car.literal = lit;
-	mark_cell(0, CELL_CREATED);
-	s_nil_atom.type = SEXPR_LITERAL | 0;
-}
-
-/* Makes an atom s_protected_literal at cell 1.
- * Points to the 'nil literal at start.
- * We use by changing its pointed literal so that literal will be protected
- * from gc.
- */
-static void make_protected_literal(SEXPR nil_atom)
-{
-	cells[1].car.literal = sexpr_literal(nil_atom);
-	mark_cell(1, CELL_CREATED);
-	s_protected_literal.type = SEXPR_LITERAL | 1;
 }
 
 static void gc_mark(SEXPR e)
@@ -1698,13 +2203,9 @@ static void gc_mark(SEXPR e)
 
 	switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
-		celli = sexpr_index(e);
-		if_cell_mark(celli, CELL_CREATED, CELL_USED);
-		break;
 	case SEXPR_LITERAL:
 		celli = sexpr_index(e);
 		if_cell_mark(celli, CELL_CREATED, CELL_USED);
-		gc_mark_literal_used(sexpr_literal(e)); 
 		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
@@ -1732,7 +2233,8 @@ static void gc(void)
 	gc_mark(s_stack);
 	gc_mark(s_cons_car);
 	gc_mark(s_cons_cdr);
-	gc_mark(s_protected_literal);
+
+	gc_literals();
 
 	/* Return to s_free_cells those marked as CELL_CREATED and set
 	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
@@ -1758,8 +2260,6 @@ static void gc(void)
 			break;
 		}
 	}
-
-	gc_literals();
 
 	printf("[cells used %d, freed %d]\n", used, freed);
 
@@ -1789,7 +2289,6 @@ int main(int argc, char* argv[])
 	       	NCELLMARK * sizeof(s_cellmarks[0]));
 
 	make_nil_atom();
-	make_protected_literal(s_nil_atom);
 	s_stack = s_nil_atom;
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
@@ -1797,12 +2296,12 @@ int main(int argc, char* argv[])
 	/* link cells for the free cells list */
 	cells[NCELL - 1].car = s_nil_atom;
 	cells[NCELL - 1].cdr = s_nil_atom;
-	/* skip nil atom cell and protected literal atom */
-	for (i = 2; i < NCELL - 1; i++) {
+	/* skip nil atom cell */
+	for (i = 1; i < NCELL - 1; i++) {
 		cells[i].car = s_nil_atom;
 		cells[i].cdr = make_cons(i + 1);
 	}
-	s_free_cells = make_cons(2);
+	s_free_cells = make_cons(1);
 
 	s_env = s_nil_atom;
 	s_hidenv = s_nil_atom;

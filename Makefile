@@ -1,10 +1,10 @@
-OBJS = lispe.o symtab.o
+OBJS = lispe.o
 CFLAGS = -g
 
 lispe: $(OBJS)
 	cc -Wall $(OBJS) -o lispe
 
-lispe.o symtab.o: common.h
+lispe.o: common.h
 
 clean:
 	rm -f $(OBJS)
