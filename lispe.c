@@ -13,10 +13,12 @@ static void p_gc(void);
 static void print(SEXPR sexpr);
 static void println(SEXPR sexpr);
 
+static int listlen(SEXPR e);
+
 static SEXPR p_evlis(SEXPR m, SEXPR a);
 static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
 static SEXPR p_eval(SEXPR e, SEXPR a);
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a);
+static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2);
 static SEXPR p_evcon(SEXPR c, SEXPR a);
 
 static SEXPR plus(SEXPR e, SEXPR a);
@@ -100,6 +102,11 @@ static SEXPR s_stack;
 /* protected current cons computation */
 static SEXPR s_cons_car;
 static SEXPR s_cons_cdr;
+
+/* protected push */
+static SEXPR s_protect_a;
+static SEXPR s_protect_b;
+static SEXPR s_protect_c;
 
 /* 
  * List of free cells.
@@ -501,13 +508,11 @@ static SEXPR p_cdr(SEXPR e)
 static int p_equal(SEXPR x, SEXPR y)
 {
 	for (;;) {
-		if (p_atom(x)) {
-			if (p_atom(y)) {
-				return p_eq(x, y);
-			} else {
-				return 0;
-			}
-		} else if (p_equal(p_car(x), p_car(y))) {
+		if (p_atom(x) && p_atom(y)) {
+			return p_eq(x, y);
+		} else if (p_consp(x) && p_consp(y) &&
+			   p_equal(p_car(x), p_car(y)))
+	       	{
 			x = p_cdr(x);
 			y = p_cdr(y);
 		} else {
@@ -604,11 +609,42 @@ static SEXPR push(SEXPR e)
 	return e;
 }
 
+static void push2(SEXPR e1, SEXPR e2)
+{
+	s_protect_a = e1;
+	s_protect_b = e2;
+	push(e1);
+	push(e2);
+	s_protect_a = s_nil_atom;
+	s_protect_b = s_nil_atom;
+}
+
+static void push3(SEXPR e1, SEXPR e2, SEXPR e3)
+{
+	s_protect_a = e1;
+	s_protect_b = e2;
+	s_protect_c = e3;
+	push(e1);
+	push(e2);
+	push(e3);
+	s_protect_a = s_nil_atom;
+	s_protect_b = s_nil_atom;
+	s_protect_c = s_nil_atom;
+}
+
 /* Pop last expression from stack. */
 static void pop(void)
 {
 	assert(!p_null(s_stack));
 	s_stack = p_cdr(s_stack);
+}
+
+static void popn(int n)
+{
+	assert(n >= 0);
+	while (n--) {
+		pop();
+	}
 }
 
 /* Given two lists, returns a list with pairs of each list, i.e.:
@@ -667,11 +703,13 @@ static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
 	if (p_null(x))
 		return a;
 
+	push3(x, y, a);
+
 	/* Handle the case of only one parameter called &rest */
 	if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-		node = push(p_cons(p_cons(p_car(x), y), s_nil_atom));
+		node = p_cons(p_cons(p_car(x), y), s_nil_atom);
 		p_setcdr(node, a);
-		pop();
+		popn(3);
 		return node;
 	}
 
@@ -693,7 +731,7 @@ static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
 		x = p_cdr(x);
 	}
 	p_setcdr(node, a);
-	pop();
+	popn(4);
 
 	return head;
 }
@@ -1018,9 +1056,8 @@ static SEXPR parse_quote(struct parser *p, int *errorc)
 	if (*errorc != ERRORC_OK)
 		return s_nil_atom;
 
-	sexpr = push(p_cons(sexpr, s_nil_atom));
+	sexpr = p_cons(sexpr, s_nil_atom);
 	sexpr = p_cons(s_quote_atom, sexpr);
-	pop();
 	return sexpr;
 }
 
@@ -1084,6 +1121,9 @@ static void clear_stack(void)
 	s_stack = s_nil_atom;
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
+	s_protect_a = s_nil_atom;
+	s_protect_b = s_nil_atom;
+	s_protect_c = s_nil_atom;
 }
 
 static void load_init_file(void)
@@ -1109,9 +1149,7 @@ static void load_init_file(void)
 	do {
 		sexpr = get_sexpr(parse(&t, &p), &errorc);
 		if (errorc == ERRORC_OK) {
-			push(sexpr);
 			p_eval(sexpr, s_nil_atom); 
-			pop();
 		}
 	} while (errorc == ERRORC_OK);
 
@@ -1176,7 +1214,7 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 			throw_err();
 
 		sexpr = p_cdr(sexpr);
-		val = push(p_eval(p_car(sexpr), a));
+		val = p_eval(p_car(sexpr), a);
 		bind = p_assoc(var, a);
 		if (p_null(bind)) {
 			bind = p_assoc(var, s_env);
@@ -1189,7 +1227,6 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 		} else {
 			p_setcdr(bind, val);
 		}
-		pop();
 		sexpr = p_cdr(sexpr);
 	}
 
@@ -1402,23 +1439,20 @@ static SEXPR body(SEXPR e, SEXPR a)
 	struct cell *pcell;
 
 	/* TODO: admit any number of arguments */
-	e = push(p_evlis(e, a));
+	e = p_evlis(e, a);
 	e = p_car(e);
 	switch (sexpr_type(e)) {
 	case SEXPR_CLOSURE:
 		cellp(sexpr_index(e), pcell);
 		e = pcell->car;
-		pop();
 		return e;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(e), pcell);
 		e = p_cons(pcell->car, pcell->cdr);
-		pop();
 		return e;
 	case SEXPR_BUILTIN_FUNCTION:
 	case SEXPR_BUILTIN_SPECIAL:
-		pop();
 		return s_nil_atom;
 	default:
 		throw_err();
@@ -1446,6 +1480,7 @@ static SEXPR p_evlis(SEXPR m, SEXPR a)
 	if (p_null(m))
 		return m;
 
+	push2(m, a);
 	head = push(p_cons(p_eval(p_car(m), a), s_nil_atom));
 	node = head;
 	m = p_cdr(m);
@@ -1455,7 +1490,7 @@ static SEXPR p_evlis(SEXPR m, SEXPR a)
 		node = node2;
 		m = p_cdr(m);
 	}
-	pop();
+	popn(3);
 	return head;
 }
 
@@ -1596,7 +1631,17 @@ static SEXPR extend_environment(SEXPR vars, SEXPR vals, SEXPR base_env)
 }
 #endif
 
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
+/* If tailrec != NULL, we will act tail recursive, that is, the last
+ * expression in the function to apply will be returned unevaluated.
+ * In that case, *tailrec will be set to 1 or 0.
+ * If 1, it means that the SEXPR returned is the last expression of a
+ * sequence and has not been evaluated. Eval can evaluate it and 'a2
+ * will be the environment in which to evaluate.
+ * This is to implement tail recursion, until a better idea.
+ * If 0, the return value is already the final one, eval does not need to
+ * evaluate anything.
+ */
+static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 {
 	SEXPR e1, r;
 	struct cell *pcell;
@@ -1609,35 +1654,87 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a)
 	printf("a: ");
 	println(a);
 #endif
+	if (tailrec) {
+		*tailrec = 0;
+	}
+
+	push3(a, x, fn);
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
-		return apply_builtin_function(sexpr_index(fn), x, a);
+		r = apply_builtin_function(sexpr_index(fn), x, a);
+		popn(3);
+		break;
 	case SEXPR_BUILTIN_SPECIAL:
-		return apply_builtin_special(sexpr_index(fn), x, a);
+		r = apply_builtin_special(sexpr_index(fn), x, a);
+		popn(3);
+		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 		cellp(sexpr_index(fn), pcell);
 		/* pair parameters with their arguments and append 'a. */
-		a = push(p_pairargs(pcell->car, x, a));
+		a = p_pairargs(pcell->car, x, a);
+		/* eval sequence */
 		e1 = pcell->cdr;
 		while (!p_null(e1)) {
+			/* last expr */
+			if (p_null(p_cdr(e1))) {
+				break;
+			}
 			r = p_eval(p_car(e1), a);
 			e1 = p_cdr(e1);
 		}
-		pop();
-		return r;
+		if (!p_null(e1)) {
+			r = p_car(e1);
+		} else {
+			r = s_nil_atom;
+		}
+		popn(3);
+		if (tailrec == NULL) {
+			r = p_eval(r, a);
+		} else {
+			*tailrec = 1;
+			*a2 = a;
+		}
+		break;
 	default:
 		throw_err();
 	}
+
+	return r;
+}
+
+static int s_evalc = 0;
+
+static int listlen(SEXPR e)
+{
+	int n;
+
+	if (!p_consp(e))
+		return 0;
+
+	n = 0;
+	while (!p_null(e)) {
+		n++;
+		e = p_cdr(e);
+	}
+	return n;
 }
 
 static SEXPR p_eval(SEXPR e, SEXPR a)
 {
-	SEXPR c, e1;
+	int tailrec, t;
+	SEXPR c, e1, a2;
 	struct cell *pcell;
 
-	switch (sexpr_type(e)) {
+	s_evalc++;
+#if 0
+	printf("eval stack %d\n", s_evalc);
+	println(s_stack);
+#endif
+
+again:  switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
+		s_evalc--;
 		return e;
 	case SEXPR_LITERAL:
 		c = p_assoc(e, a);
@@ -1645,6 +1742,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			c = p_assoc(e, s_env);
 		}
 		c = p_cdr(c);
+		s_evalc--;
 		return c;
 	case SEXPR_CONS:
 		if (s_debug) {
@@ -1653,29 +1751,38 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 			printf("a: ");
 			println(a);
 		}
-		c = push(p_eval(p_car(e), a));
-		switch (sexpr_type(c)) {
+		push2(a, e);
+		c = p_eval(p_car(e), a);
+		t = sexpr_type(c);
+		switch (t) {
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
-			c = p_apply(c, p_cdr(e), a);
-			break;
-		case SEXPR_CLOSURE:
-			e1 = push(p_evlis(p_cdr(e), a));
-			cellp(sexpr_index(c), pcell);
-			c = p_apply(lambda(pcell->car, a), e1, pcell->cdr);
-			pop();
+			popn(2);
+			c = p_apply(c, p_cdr(e), a, &tailrec, &a2);
 			break;
 		default:
-			e1 = push(p_evlis(p_cdr(e), a));
-			c = p_apply(c, e1, a);
-			pop();
+			push(c);
+			e1 = p_evlis(p_cdr(e), a);
+			popn(3);
+			if (t == SEXPR_CLOSURE) {
+				cellp(sexpr_index(c), pcell);
+				c = lambda(pcell->car, a);
+				a = pcell->cdr;
+			}
+			c = p_apply(c, e1, a, &tailrec, &a2);
 		}
-		pop();
+		if (tailrec) {
+			e = c;
+			a = a2;
+			goto again;
+		}
 		if(s_debug) {
 			printf("r: ");
 			println(c);
 		}
+		s_evalc--;
 		return c;
+
 	default:
 		throw_err();
 	}
@@ -2068,9 +2175,8 @@ void op_evlis_loop(void)
 
 static SEXPR eval(SEXPR e, SEXPR a)
 {
-	e = push(p_eval(p_car(e), a));
+	e = p_eval(p_car(e), a);
 	e = p_eval(e, a);
-	pop();
 	return e;
 }
 
@@ -2215,6 +2321,9 @@ static void p_gc(void)
 	gc_mark(s_stack);
 	gc_mark(s_cons_car);
 	gc_mark(s_cons_cdr);
+	gc_mark(s_protect_a);
+	gc_mark(s_protect_b);
+	gc_mark(s_protect_c);
 
 	gc_literals();
 
@@ -2309,9 +2418,7 @@ int main(int argc, char* argv[])
 			} else if (errorc == ERRORC_SYNTAX) {
 				printf("lispe: syntax error\n");
 			} else {
-				push(e);
 				println(p_eval(e, s_nil_atom));
-				pop();
 			}
 		} else {
 			printf("lispe: ** error **\n");
