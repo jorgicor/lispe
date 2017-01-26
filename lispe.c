@@ -41,7 +41,6 @@ static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR closure(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
-static SEXPR label(SEXPR e, SEXPR a);
 static SEXPR setq(SEXPR sexpr, SEXPR a);
 static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
@@ -733,7 +732,6 @@ static struct builtin builtin_specials[] = {
 	{ "body", &body },
 	{ "cond", &cond },
 	{ "eval", &eval },
-	{ "label", &label },
 	{ "lambda", &lambda },
 	{ "closure", &closure },
 	{ "list", &list },
@@ -1381,27 +1379,6 @@ static SEXPR null(SEXPR e, SEXPR a)
 static SEXPR eq(SEXPR e, SEXPR a)
 {
 	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : s_nil_atom;
-}
-
-static SEXPR label(SEXPR e, SEXPR a)
-{
-	SEXPR name, proc, args, r;
-
-	name = p_car(e);
-	if (!p_symbolp(name))
-		throw_err();
-
-	proc = push(p_eval(p_car(p_cdr(e)), a));
-	args = push(p_evlis(p_cdr(p_cdr(e)), a));
-	a = push(p_add(name, proc, a)); 
-	r = p_apply(proc, args, a); 
-	pop(); pop(); pop();
-	return r;
-	/*
-	proc = p_eval(p_car(p_cdr(e)), a);
-	args = p_evlis(p_cdr(p_cdr(e)), a);
-	return p_apply(proc, args, p_add(name, proc, a)); 
-	*/
 }
 
 static SEXPR lambda(SEXPR e, SEXPR a)
