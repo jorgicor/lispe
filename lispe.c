@@ -93,6 +93,7 @@ static SEXPR s_rest_atom;
 
 /* global environment */
 static SEXPR s_env;
+
 /* hidden environment, used to not gc quote, &rest, etc. */
 static SEXPR s_hidenv;
 
@@ -363,14 +364,16 @@ void gc_literals(void)
  * Making s-expressions.
  *********************************************************/
 
+#define MASK (((unsigned int) -1) >> 3)
+
 int sexpr_type(SEXPR e)
 {
-	return e.type & 0xe0000000;
+	return e.type & ~MASK;
 }
 
 int sexpr_index(SEXPR e)
 {
-	return e.type & ~0xe0000000;
+	return e.type & MASK;
 }
 
 float sexpr_number(SEXPR e)
@@ -545,7 +548,7 @@ static SEXPR p_setcdr(SEXPR e, SEXPR val)
 	return val;
 }
 
-/* 'a is an association list such as the one produced by 'p_pairlis.
+/* 'a is an association list ((A . B) (C . D) ... ).
  * Return the first pair whose 'car is 'x.
  */
 static SEXPR p_assoc(SEXPR x, SEXPR a)
@@ -645,47 +648,6 @@ static void popn(int n)
 	while (n--) {
 		pop();
 	}
-}
-
-/* Given two lists, returns a list with pairs of each list, i.e.:
- * (A B) (C D) -> ((A C) (B D))
- * and adds it to the start of the list 'a.
- */
-static SEXPR p_pairlis(SEXPR x, SEXPR y, SEXPR a)
-{
-	SEXPR head, node, node2;
-
-	if (p_null(x))
-		return a;
-
-	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
-
-	node = head;
-	x = p_cdr(x);
-	y = p_cdr(y);
-	while (!p_null(x)) {
-		node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
-		p_setcdr(node, node2);
-		node = node2;
-		x = p_cdr(x);
-		y = p_cdr(y);
-	}
-	p_setcdr(node, a);
-	pop();
-
-	return head;
-
-#if 0
-	/* recursive version */
-	if (p_null(x)) {
-		return a;
-	} else {	
-		a = push(p_pairlis(p_cdr(x), p_cdr(y), a));
-		a = p_cons(p_cons(p_car(x), p_car(y)), a);
-		pop();
-		return a;
-	}
-#endif
 }
 
 /* Given two lists, 'x and 'y, returns a list with pairs of each list, i.e.:
@@ -1655,6 +1617,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 	println(a);
 #endif
 	if (tailrec) {
+		assert(a2);
 		*tailrec = 0;
 	}
 
@@ -1673,7 +1636,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		cellp(sexpr_index(fn), pcell);
 		/* pair parameters with their arguments and append 'a. */
 		a = p_pairargs(pcell->car, x, a);
-		/* eval sequence */
+		/* eval sequence except the last expression */
 		e1 = pcell->cdr;
 		while (!p_null(e1)) {
 			/* last expr */
@@ -1689,11 +1652,13 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 			r = s_nil_atom;
 		}
 		popn(3);
-		if (tailrec == NULL) {
-			r = p_eval(r, a);
-		} else {
-			*tailrec = 1;
-			*a2 = a;
+		if (!p_null(r)) {
+			if (tailrec == NULL) {
+				r = p_eval(r, a);
+			} else {
+				*tailrec = 1;
+				*a2 = a;
+			}
 		}
 		break;
 	default:
@@ -1727,7 +1692,7 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 	struct cell *pcell;
 
 	s_evalc++;
-#if 0
+#if 1
 	printf("eval stack %d\n", s_evalc);
 	println(s_stack);
 #endif
@@ -1751,20 +1716,26 @@ again:  switch (sexpr_type(e)) {
 			printf("a: ");
 			println(a);
 		}
+		/* evaluate the operator */
 		push2(a, e);
 		c = p_eval(p_car(e), a);
 		t = sexpr_type(c);
 		switch (t) {
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
+			/* special forms evaluate the arguments on demand */
 			popn(2);
 			c = p_apply(c, p_cdr(e), a, &tailrec, &a2);
 			break;
 		default:
+			/* evaluate the arguments */
 			push(c);
 			e1 = p_evlis(p_cdr(e), a);
 			popn(3);
 			if (t == SEXPR_CLOSURE) {
+				/* a closure overrides the environment
+				 * with its saved environment.
+				 */
 				cellp(sexpr_index(c), pcell);
 				c = lambda(pcell->car, a);
 				a = pcell->cdr;

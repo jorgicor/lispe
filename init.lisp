@@ -167,6 +167,6 @@
     (eval (list 'setq x nil))))
 
 (setq factorial (lambda (n) (fact-iter 1 1 n)))
-(setq fact-iter (lambda (p c m)
+(setq fact-iter (closure (p c m)
 	(cond ((> c m) p)
 	      (t (fact-iter (* c p) (+ c 1) m)))))
