@@ -9,7 +9,7 @@
 
 static int s_debug = 0;
 
-static void gc(void);
+static void p_gc(void);
 static void print(SEXPR sexpr);
 static void println(SEXPR sexpr);
 
@@ -48,6 +48,8 @@ static SEXPR greaterp(SEXPR sexpr, SEXPR a);
 static SEXPR consp(SEXPR e, SEXPR a);
 static SEXPR numberp(SEXPR e, SEXPR a);
 static SEXPR null(SEXPR e, SEXPR a);
+static SEXPR gc(SEXPR e, SEXPR a);
+static SEXPR quit(SEXPR e, SEXPR a);
 
 static int pop_free_cell(void);
 
@@ -240,80 +242,76 @@ static unsigned int hash(const char *p, size_t len)
 	return h;
 }
 
-SEXPR make_literal(const char *s, int len)
+/* If celli < 0 a new cell is requested if the literal was not already
+ * in the hash table; if it was it is returned.
+ * If celli >= 0, the literal is installed on that cell and installed in the
+ * hash table (thus potentially producing duplicates).
+ * This feature is only used to install "nil" the first time when the cells are
+ * not linked on a free list.
+ */
+SEXPR make_literal_in_cell(const char *s, int len, int celli)
 {
 	SEXPR e;
-	int celli;
 	unsigned int h;
 	struct lit_hasht_head *q;
 	struct literal *p;
 	struct cell *pcell;
 
 	h = hash(s, len) % NCHAINS;
-	for (q = s_hashtab[h].next; q != NULL; q = q->next) {
-		p = (struct literal *) q;
-		if (cmpstrlen(s, len, p->name) == 0) {
-			e.type = SEXPR_LITERAL | p->celli;
-			return e;
+	if (celli < 0) {
+		for (q = s_hashtab[h].next; q != NULL; q = q->next) {
+			p = (struct literal *) q;
+			if (cmpstrlen(s, len, p->name) == 0) {
+				e.type = SEXPR_LITERAL | p->celli;
+				return e;
+			}
 		}
 	}
 
-	celli = pop_free_cell();
-
 	p = malloc(sizeof(*p) + len + 1);
 	if (p == NULL) {
-		fprintf(stderr, "lispe: out of memory\n");
-		exit(EXIT_FAILURE);
+		if (celli < 0) {
+			p_gc();
+			p = malloc(sizeof(*p) + len + 1);
+			if (p == NULL) {
+				goto fatal;
+			}
+		} else {
+			goto fatal;
+		}
+	}
+
+	if (celli < 0) {
+		celli = pop_free_cell();
 	}
 
 	memcpy(p->name, s, len);
 	p->name[len] = '\0';
 	p->celli = celli;
 
+#if 0
+	printf("literal created %s\n", p->name);
+#endif
+
 	p->next = s_hashtab[h].next;
 	s_hashtab[h].next = (struct lit_hasht_head *) p;
 
 	cellp(celli, pcell);
 	pcell->car.name = p->name;
-	pcell->cdr = s_nil_atom;
 	mark_cell(celli, CELL_CREATED);
 	e.type = SEXPR_LITERAL | celli;
+	pcell->cdr = e;
+	return e;
+
+fatal:
+	fprintf(stderr, "lispe: out of memory\n");
+	exit(EXIT_FAILURE);
 	return e;
 }
 
-/* special case because the cells are not linked. */
-static void make_nil_atom(void)
+SEXPR make_literal(const char *s, int len)
 {
-	const char *s;
-	int len, celli;
-	unsigned int h;
-	struct literal *p;
-	struct cell *pcell;
-
-	s = "nil";
-	len = 3;
-	h = hash(s, len) % NCHAINS;
-	celli = 0;
-
-	p = malloc(sizeof(*p) + len + 1);
-	if (p == NULL) {
-		fprintf(stderr, "lispe: out of memory\n");
-		exit(EXIT_FAILURE);
-	}
-
-	memcpy(p->name, s, len);
-	p->name[len] = '\0';
-	p->celli = celli;
-
-	p->next = s_hashtab[h].next;
-	s_hashtab[h].next = (struct lit_hasht_head *) p;
-
-	cellp(celli, pcell);
-	pcell->car.name = p->name;
-	pcell->cdr = s_nil_atom;
-	mark_cell(celli, CELL_CREATED);
-
-	s_nil_atom.type = SEXPR_LITERAL | celli;
+	return make_literal_in_cell(s, len, -1);
 }
 
 const char *sexpr_name(SEXPR lit)
@@ -564,7 +562,7 @@ static int pop_free_cell(void)
 	int i;
 
 	if (p_null(s_free_cells)) {
-		gc();
+		p_gc();
 		if (p_null(s_free_cells)) {
 			printf("lisep: No more free cells.\n");
 			exit(EXIT_FAILURE);
@@ -717,6 +715,7 @@ static struct builtin builtin_functions[] = {
 	{ "eq", &eq },
 	{ "equal", &equal },
 	{ ">", &greaterp },
+	{ "gc", &gc },
 	{ "<", &lessp },
 	{ "null", &null },
 	{ "numberp", &numberp },
@@ -725,6 +724,7 @@ static struct builtin builtin_functions[] = {
 	{ "setcdr", &setcdr },
 	{ "symbolp", &symbolp },
 	{ "*", &times },
+	{ "quit", &quit },
 	{ "/", &quotient },
 	/* modulo and remainder */
 };
@@ -1158,6 +1158,11 @@ static SEXPR list(SEXPR e, SEXPR a)
 static SEXPR assoc(SEXPR e, SEXPR a)
 {
 	return p_assoc(p_car(e), p_car(p_cdr(e)));
+}
+
+static SEXPR quit(SEXPR e, SEXPR a)
+{
+	exit(EXIT_SUCCESS);
 }
 
 static SEXPR setq(SEXPR sexpr, SEXPR a)
@@ -2221,7 +2226,7 @@ static void gc_mark(SEXPR e)
 	}
 }
 
-static void gc(void)
+static void p_gc(void)
 {
 	int i, used, freed;
 	SEXPR e;
@@ -2275,6 +2280,12 @@ static void gc(void)
 #endif
 }
 
+static SEXPR gc(SEXPR e, SEXPR a)
+{
+	p_gc();
+	return s_nil_atom;
+}
+
 int main(int argc, char* argv[])
 {
 	int i, errorc;
@@ -2288,7 +2299,7 @@ int main(int argc, char* argv[])
 		NCELL * sizeof(cells[0]),
 	       	NCELLMARK * sizeof(s_cellmarks[0]));
 
-	make_nil_atom();
+	s_nil_atom = make_literal_in_cell("nil", 3, 0);
 	s_stack = s_nil_atom;
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
