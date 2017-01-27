@@ -1,8 +1,11 @@
+#include "config.h"
+#include "cellmark.h"
 #include "common.h"
 #include "lex.h"
 #include <assert.h>
-#include <ctype.h>
+#ifndef STDIO_H
 #include <stdio.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
@@ -50,11 +53,11 @@ static SEXPR null(SEXPR e, SEXPR a);
 static SEXPR gc(SEXPR e, SEXPR a);
 static SEXPR quit(SEXPR e, SEXPR a);
 
-static jmp_buf buf; 
-
 /*********************************************************
  * Exceptions.
  *********************************************************/
+
+static jmp_buf buf; 
 
 void throw_err(void)
 {

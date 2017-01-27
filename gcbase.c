@@ -1,4 +1,6 @@
+#include "config.h"
 #include "common.h"
+#include "cellmark.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>

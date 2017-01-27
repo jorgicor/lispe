@@ -1,12 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#ifndef CONFIG_H
-#include "config.h"
-#endif
-
-#include <stdio.h>
-
 #define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
 
 /* sexpr.c */
@@ -76,7 +70,6 @@ SEXPR make_literal_in_cell(const char *s, int len, int celli);
 
 void gc_literals(void);
 
-
 /* cells.c */
 
 enum {
@@ -115,19 +108,6 @@ void set_cell_cdr(int celli, SEXPR cdre);
 #endif
 
 void cells_init(void);
-
-/* cellmark.h */
-
-enum {
-	CELL_FREE,
-	CELL_CREATED,
-	CELL_USED
-};
-
-void mark_cell(int celli, int mark);
-int cell_mark(int celli);
-int if_cell_mark(int celli, int ifmark, int thenmark);
-void cellmark_init(void);
 
 /* pred.c */
 

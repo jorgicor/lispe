@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common.h"
 
 int p_null(SEXPR e)

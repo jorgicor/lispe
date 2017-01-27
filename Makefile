@@ -1,18 +1,16 @@
-OBJS = lispe.o cells.o cellmark.o sexpr.o gcbase.o pred.o parse.o lex.o
+OBJS = lex.o cells.o cellmark.o sexpr.o gcbase.o pred.o parse.o lispe.o
 CFLAGS = -g
 
 lispe: $(OBJS)
 	cc -Wall $(OBJS) -o lispe
 
-lispe.o: lex.h common.h config.h
+lex.o cells.o cellmark.o sexpr.o gcbase.o pred.o parse.o lispe.o: config.h
 
-cells.o cellmark.o sexpr.o: common.h config.h
+cells.o cellmark.o sexpr.o gcbase.o pred.o parse.o lispe.o: common.h
 
-gcbase.o pred.o: common.h config.h
+cellmark.o sexpr.o gcbase.o lispe.o: cellmark.h
 
-parse.o: lex.h common.h config.h
-
-lex.o: lex.h
+lex.o parse.o lispe.o: lex.h
 
 clean:
 	rm -f $(OBJS)

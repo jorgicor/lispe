@@ -1,6 +1,9 @@
 #include "lex.h"
 #include <string.h>
 #include <ctype.h>
+#ifndef STDIO_H
+#include <stdio.h>
+#endif
 
 /************************************************************/
 /* input channels                                           */
