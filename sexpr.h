@@ -1,9 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H
-
-#define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
-
-typedef struct literal * LITERAL;
+#ifndef SEXPR_H
+#define SEXPR_H
 
 /*
  * We look at the 3 left bits of type.
@@ -22,6 +18,7 @@ typedef struct literal * LITERAL;
  * SEXPR_LITERAL: bits(28..0) is index to a cell whose car is the pointer
  *                to the struct literal (the cdr we don't care).
  */
+
 union sexpr {
 	int type;
 	float number;
@@ -29,32 +26,5 @@ union sexpr {
 };
 
 typedef union sexpr SEXPR;
-
-enum {
-	SEXPR_CONS = 0 << 29,
-	SEXPR_LITERAL = 1 << 29,
-	SEXPR_NUMBER = 2 << 29,
-	SEXPR_BUILTIN_FUNCTION = 3 << 29,
-	SEXPR_BUILTIN_SPECIAL = 4 << 29,
-	SEXPR_FUNCTION = 5 << 29,
-	SEXPR_SPECIAL = 6 << 29,
-	SEXPR_CLOSURE = 7 << 29,
-};
-
-/* sexpr.c */
-
-SEXPR make_cons(int i);
-SEXPR make_literal(const char *s, int len);
-SEXPR make_number(float n);
-SEXPR make_builtin_function(int i);
-SEXPR make_builtin_special(int i);
-SEXPR make_function(int args_n_body);
-SEXPR make_special(int args_n_body);
-SEXPR make_closure(int lambda_n_alist);
-
-int sexpr_type(SEXPR e);
-int sexpr_index(SEXPR e);
-LITERAL sexpr_literal(SEXPR e);
-float sexpr_number(SEXPR e);
 
 #endif

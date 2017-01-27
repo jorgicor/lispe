@@ -1,11 +1,59 @@
-#include "common.h"
+#include "cells.h"
+#ifndef SEXPR_H
+#include "sexpr.h"
+#endif
+#ifndef STDIO_H
 #include <stdio.h>
+#endif
+#ifndef STDLIB_H
 #include <stdlib.h>
+#endif
+#ifndef STRING_H
 #include <string.h>
+#endif
+#ifndef CTYPE_H
 #include <ctype.h>
+#endif
+#ifndef SETJMP_H
 #include <setjmp.h>
+#endif
+#ifndef ASSERT_H
 #include <assert.h>
+#endif
+#ifndef LIMITS_H
 #include <limits.h>
+#endif
+
+#define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
+
+typedef struct literal * LITERAL;
+
+enum {
+	SEXPR_CONS = 0 << 29,
+	SEXPR_LITERAL = 1 << 29,
+	SEXPR_NUMBER = 2 << 29,
+	SEXPR_BUILTIN_FUNCTION = 3 << 29,
+	SEXPR_BUILTIN_SPECIAL = 4 << 29,
+	SEXPR_FUNCTION = 5 << 29,
+	SEXPR_SPECIAL = 6 << 29,
+	SEXPR_CLOSURE = 7 << 29,
+};
+
+/* sexpr.c */
+
+SEXPR make_cons(int i);
+SEXPR make_literal(const char *s, int len);
+SEXPR make_number(float n);
+SEXPR make_builtin_function(int i);
+SEXPR make_builtin_special(int i);
+SEXPR make_function(int args_n_body);
+SEXPR make_special(int args_n_body);
+SEXPR make_closure(int lambda_n_alist);
+
+int sexpr_type(SEXPR e);
+int sexpr_index(SEXPR e);
+LITERAL sexpr_literal(SEXPR e);
+float sexpr_number(SEXPR e);
 
 static int s_debug = 0;
 
@@ -59,17 +107,6 @@ enum {
 	ERRORC_EOF,
 	ERRORC_SYNTAX,
 };
-
-enum {
-	NCELL = 3000,
-};
-
-struct cell {
-	SEXPR car;
-	SEXPR cdr;
-};
-
-static struct cell cells[NCELL];
 
 enum { NCELLMARK = (NCELL / 16) + ((NCELL % 16) ? 1 : 0) };
 
@@ -170,23 +207,6 @@ static int if_cell_mark(int i, int ifmark, int thenmark)
  * Hash table for literals.
  *********************************************************/
 
-/* Get the cell at index i into pcell. Range checking. */
-#if 0
-static void cellp(int i, struct cell *pcell)
-{
-	assert(i >= 0 && i < NCELL);
-	return &cells[i];
-}
-#else
-#define cellp(i,cellp) \
-	do { \
-		int k; \
-		k = i; \
-		assert(k >= 0 && k < NCELL); \
-		cellp = &cells[k]; \
-	} while (0);
-#endif
-
 /* prime */
 enum { NCHAINS = 16381 };
 
@@ -262,7 +282,6 @@ SEXPR make_literal_in_cell(const char *s, int len, int celli)
 	unsigned int h;
 	struct lit_hasht_head *q;
 	struct literal *p;
-	struct cell *pcell;
 
 	h = hash(s, len) % NCHAINS;
 	if (celli < 0) {
@@ -303,11 +322,11 @@ SEXPR make_literal_in_cell(const char *s, int len, int celli)
 	p->next = s_hashtab[h].next;
 	s_hashtab[h].next = (struct lit_hasht_head *) p;
 
-	cellp(celli, pcell);
-	pcell->car.name = p->name;
+	e.name = p->name;
+	set_cell_car(celli, e); 
 	mark_cell(celli, CELL_CREATED);
 	e.type = SEXPR_LITERAL | celli;
-	pcell->cdr = e;
+	set_cell_cdr(celli, e);
 	return e;
 
 fatal:
@@ -323,10 +342,7 @@ SEXPR make_literal(const char *s, int len)
 
 const char *sexpr_name(SEXPR lit)
 {
-	struct cell *pcell;
-
-	cellp(sexpr_index(lit), pcell);
-	return pcell->car.name;
+	return cell_car(sexpr_index(lit)).name;
 }
 
 int literals_equal(SEXPR lita, SEXPR litb)
@@ -378,10 +394,7 @@ int sexpr_index(SEXPR e)
 
 float sexpr_number(SEXPR e)
 {
-	struct cell *pcell;
-
-	cellp(sexpr_index(e), pcell);
-	return pcell->car.number;
+	return cell_car(sexpr_index(e)).number;
 }
 
 SEXPR make_cons(int i)
@@ -398,7 +411,8 @@ SEXPR make_number(float n)
 	int celli;
 
 	celli = pop_free_cell();
-	cells[celli].car.number = n;
+	e.number = n;
+	set_cell_car(celli, e);
 	e.type = SEXPR_NUMBER | celli;
 	return e;
 }
@@ -488,24 +502,18 @@ static int p_eq(SEXPR x, SEXPR y)
 
 static SEXPR p_car(SEXPR e)
 {
-	struct cell *pcell;
-
 	if (!p_consp(e))
 		throw_err();
 
-	cellp(sexpr_index(e), pcell);
-	return pcell->car;
+	return cell_car(sexpr_index(e));
 }
 
 static SEXPR p_cdr(SEXPR e)
 {
-	struct cell *pcell;
-
 	if (!p_consp(e))
 		throw_err();
 
-	cellp(sexpr_index(e), pcell);
-	return pcell->cdr;
+	return cell_cdr(sexpr_index(e));
 }
 
 static int p_equal(SEXPR x, SEXPR y)
@@ -526,25 +534,19 @@ static int p_equal(SEXPR x, SEXPR y)
 
 static SEXPR p_setcar(SEXPR e, SEXPR val)
 {
-	struct cell *pcell;
-
 	if (!p_consp(e))
 		throw_err();
 
-	cellp(sexpr_index(e), pcell);
-	pcell->car = val;
+	set_cell_car(sexpr_index(e), val);
 	return val;
 }
 
 static SEXPR p_setcdr(SEXPR e, SEXPR val)
 {
-	struct cell *pcell;
-
 	if (!p_consp(e))
 		throw_err();
 
-	cellp(sexpr_index(e), pcell);
-	pcell->cdr = val;
+	set_cell_cdr(sexpr_index(e), val);
 	return val;
 }
 
@@ -592,8 +594,8 @@ static SEXPR p_cons(SEXPR first, SEXPR rest)
 	s_cons_cdr = rest;
 
 	i = pop_free_cell();
-	cells[i].car = first;
-	cells[i].cdr = rest;
+	set_cell_car(i, first);
+	set_cell_car(i, rest);
 
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
@@ -1398,21 +1400,18 @@ static SEXPR closure(SEXPR e, SEXPR a)
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
 static SEXPR body(SEXPR e, SEXPR a)
 {
-	struct cell *pcell;
+	int celli;
 
 	/* TODO: admit any number of arguments */
 	e = p_evlis(e, a);
 	e = p_car(e);
 	switch (sexpr_type(e)) {
 	case SEXPR_CLOSURE:
-		cellp(sexpr_index(e), pcell);
-		e = pcell->car;
-		return e;
+		return cell_car(sexpr_index(e));
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-		cellp(sexpr_index(e), pcell);
-		e = p_cons(pcell->car, pcell->cdr);
-		return e;
+		celli = sexpr_index(e);
+		return p_cons(cell_car(celli), cell_cdr(celli));
 	case SEXPR_BUILTIN_FUNCTION:
 	case SEXPR_BUILTIN_SPECIAL:
 		return s_nil_atom;
@@ -1481,7 +1480,7 @@ static SEXPR p_evcon(SEXPR c, SEXPR a)
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 {
 	SEXPR e1, r;
-	struct cell *pcell;
+	int celli;
 
 #if 0
 	printf("apply fn: ");
@@ -1508,11 +1507,11 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-		cellp(sexpr_index(fn), pcell);
+		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and append 'a. */
-		a = p_pairargs(pcell->car, x, a);
+		a = p_pairargs(cell_car(celli), x, a);
 		/* eval sequence except the last expression */
-		e1 = pcell->cdr;
+		e1 = cell_cdr(celli);
 		while (!p_null(e1)) {
 			/* last expr */
 			if (p_null(p_cdr(e1))) {
@@ -1564,10 +1563,10 @@ static SEXPR p_eval(SEXPR e, SEXPR a)
 {
 	int tailrec, t;
 	SEXPR c, e1, a2;
-	struct cell *pcell;
+	int celli;
 
 	s_evalc++;
-#if 1
+#if 0
 	printf("eval stack %d\n", s_evalc);
 	println(s_stack);
 #endif
@@ -1611,9 +1610,9 @@ again:  switch (sexpr_type(e)) {
 				/* a closure overrides the environment
 				 * with its saved environment.
 				 */
-				cellp(sexpr_index(c), pcell);
-				c = lambda(pcell->car, a);
-				a = pcell->cdr;
+				celli = sexpr_index(c);
+				c = lambda(cell_car(celli), a);
+				a = cell_cdr(celli);
 			}
 			c = p_apply(c, e1, a, &tailrec, &a2);
 		}
@@ -1650,13 +1649,13 @@ static void print(SEXPR sexpr)
 		/* TODO: avoid infinite recursion */
 		i = sexpr_index(sexpr);
 		printf("(");
-		print(cells[i].car);
-		while (!p_null(cells[i].cdr)) {
-			sexpr = cells[i].cdr;
+		print(cell_car(i));
+		while (!p_null(cell_cdr(i))) {
+			sexpr = cell_cdr(i);
 			if (sexpr_type(sexpr) == SEXPR_CONS) {
 				i = sexpr_index(sexpr);
 				printf(" ");
-				print(cells[i].car);
+				print(cell_car(i));
 			} else {
 				printf(" . ");
 				print(sexpr);
@@ -1683,8 +1682,8 @@ static void print(SEXPR sexpr)
 		printf("{function}");
 #if 0
 		printf("(lambda ");
-		print(cells[sexpr_index(sexpr)].car);
-		print(cells[sexpr_index(sexpr)].cdr);
+		print(cell_car(sexpr_index(sexpr)));
+		print(cell_cdr(sexpr_index(sexpr))));
 		printf(")");
 #endif
 		break;
@@ -1748,7 +1747,6 @@ static void install_literals(void)
 static void gc_mark(SEXPR e)
 {
 	int celli;
-	struct cell *pcell;
 
 	switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
@@ -1761,10 +1759,9 @@ static void gc_mark(SEXPR e)
 	case SEXPR_CLOSURE:
 	case SEXPR_CONS:
 		celli = sexpr_index(e);
-		cellp(celli, pcell);
 		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {
-			gc_mark(pcell->car);
-			gc_mark(pcell->cdr);
+			gc_mark(cell_car(celli));
+			gc_mark(cell_cdr(celli));
 		}
 		break;
 	}
@@ -1774,7 +1771,6 @@ static void p_gc(void)
 {
 	int i, used, freed;
 	SEXPR e;
-	struct cell *pcell;
 
 	/* Mark used. */
 	gc_mark(s_hidenv);
@@ -1797,12 +1793,12 @@ static void p_gc(void)
 		case CELL_CREATED:
 			freed++;
 			mark_cell(i, CELL_FREE);
-			cells[i].car = s_nil_atom;
+			set_cell_car(i, s_nil_atom);
 			if (p_null(s_free_cells)) {
-				cells[i].cdr = s_nil_atom;
+				set_cell_cdr(i, s_nil_atom);
 			} else {
-				cells[i].cdr = make_cons(
-					sexpr_index(s_free_cells));
+				set_cell_cdr(i,
+					make_cons(sexpr_index(s_free_cells)));
 			}
 			s_free_cells = make_cons(i);
 			break;
@@ -1842,8 +1838,8 @@ int main(int argc, char* argv[])
 	printf("[ncells: %d, ncellmarks: %d]\n", NCELL, NCELLMARK);
 	printf("[bytes sexpr: %u, cell: %u, cells: %u, cellmarks: %u]\n",
 		sizeof(SEXPR),
-		sizeof(cells[0]),
-		NCELL * sizeof(cells[0]),
+		cell_size(),
+		NCELL * cell_size(),
 	       	NCELLMARK * sizeof(s_cellmarks[0]));
 
 	s_nil_atom = make_literal_in_cell("nil", 3, 0);
@@ -1852,12 +1848,12 @@ int main(int argc, char* argv[])
 	s_cons_cdr = s_nil_atom;
 
 	/* link cells for the free cells list */
-	cells[NCELL - 1].car = s_nil_atom;
-	cells[NCELL - 1].cdr = s_nil_atom;
+	set_cell_car(NCELL - 1, s_nil_atom);
+	set_cell_cdr(NCELL - 1, s_nil_atom);
 	/* skip nil atom cell */
 	for (i = 1; i < NCELL - 1; i++) {
-		cells[i].car = s_nil_atom;
-		cells[i].cdr = make_cons(i + 1);
+		set_cell_car(i, s_nil_atom);
+		set_cell_cdr(i, make_cons(i + 1));
 	}
 	s_free_cells = make_cons(1);
 
