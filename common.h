@@ -118,7 +118,18 @@ int p_symbolp(SEXPR e);
 int p_numberp(SEXPR e);
 SEXPR p_car(SEXPR e);
 SEXPR p_cdr(SEXPR e);
+int p_eq(SEXPR x, SEXPR y);
+int p_equal(SEXPR x, SEXPR y);
+SEXPR p_setcar(SEXPR e, SEXPR val);
+SEXPR p_setcdr(SEXPR e, SEXPR val);
+SEXPR p_assoc(SEXPR x, SEXPR a);
+SEXPR p_evcon(SEXPR c, SEXPR a);
+SEXPR p_evlis(SEXPR m, SEXPR a);
+SEXPR p_eval(SEXPR e, SEXPR a);
 SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
+
+void p_print(SEXPR sexpr);
+void p_println(SEXPR sexpr);
 
 /* gcbase.c */
 
@@ -137,6 +148,7 @@ void push2(SEXPR e1, SEXPR e2);
 void push3(SEXPR e1, SEXPR e2, SEXPR e3);
 void pop(void);
 void popn(int n);
+int stack_empty(void);
 
 void p_gc(void);
 
@@ -162,5 +174,10 @@ SEXPR get_sexpr(struct parser *p, int *errorc);
 /* lispe.c */
 
 void throw_err(void);
+SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a);
+SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a);
+const char *builtin_function_name(int i);
+const char *builtin_special_name(int i);
+SEXPR lambda(SEXPR e, SEXPR a);
 
 #endif

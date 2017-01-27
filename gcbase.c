@@ -129,6 +129,11 @@ void popn(int n)
 	}
 }
 
+int stack_empty(void)
+{
+	return p_equal(s_stack, s_nil_atom);
+}
+
 /* Marks an expression and subexpressions. */
 static void gc_mark(SEXPR e)
 {

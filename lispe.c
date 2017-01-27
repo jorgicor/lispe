@@ -10,18 +10,6 @@
 #include <string.h>
 #include <setjmp.h>
 
-static int s_debug = 0;
-
-static void print(SEXPR sexpr);
-static void println(SEXPR sexpr);
-
-static int listlen(SEXPR e);
-
-static SEXPR p_evlis(SEXPR m, SEXPR a);
-static SEXPR p_eval(SEXPR e, SEXPR a);
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2);
-static SEXPR p_evcon(SEXPR c, SEXPR a);
-
 static SEXPR plus(SEXPR e, SEXPR a);
 static SEXPR difference(SEXPR e, SEXPR a);
 static SEXPR times(SEXPR e, SEXPR a);
@@ -39,7 +27,6 @@ static SEXPR quote(SEXPR e, SEXPR a);
 static SEXPR cond(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
-static SEXPR lambda(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR closure(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
@@ -64,120 +51,7 @@ void throw_err(void)
 	longjmp(buf, 1);
 }
 
-/*********************************************************
- * Internal predicates and functions, start with p_ 
- *********************************************************/
-
-static int p_eq(SEXPR x, SEXPR y)
-{
-	if (p_null(x) && p_null(y)) {
-		return 1;
-	} else if (p_symbolp(x) && p_symbolp(y)) {
-		return sexpr_eq(x, y);
-	} else if (p_numberp(x) && p_numberp(y)) {
-		return sexpr_number(x) == sexpr_number(y);
-	} else {
-		throw_err();
-	}
-}
-
-static int p_equal(SEXPR x, SEXPR y)
-{
-	for (;;) {
-		if (p_atom(x) && p_atom(y)) {
-			return p_eq(x, y);
-		} else if (p_consp(x) && p_consp(y) &&
-			   p_equal(p_car(x), p_car(y)))
-	       	{
-			x = p_cdr(x);
-			y = p_cdr(y);
-		} else {
-			return 0;
-		}
-	}
-}
-
-static SEXPR p_setcar(SEXPR e, SEXPR val)
-{
-	if (!p_consp(e))
-		throw_err();
-
-	set_cell_car(sexpr_index(e), val);
-	return val;
-}
-
-static SEXPR p_setcdr(SEXPR e, SEXPR val)
-{
-	if (!p_consp(e))
-		throw_err();
-
-	set_cell_cdr(sexpr_index(e), val);
-	return val;
-}
-
-/* 'a is an association list ((A . B) (C . D) ... ).
- * Return the first pair whose 'car is 'x.
- */
-static SEXPR p_assoc(SEXPR x, SEXPR a)
-{
-	for (;;) {
-		if (p_null(a)) {
-			return s_nil_atom;
-		} else if (p_equal(p_car(p_car(a)), x)) {
-			return p_car(a);
-		} else {
-			a = p_cdr(a);
-		}
-	}
-}
-
-/* Given two lists, 'x and 'y, returns a list with pairs of each list, i.e.:
- * (A B) (C D) -> ((A C) (B D))
- * and adds it to the start of the list 'a.
- * The list 'x must contain symbols.
- * The list 'x can be shorter than 'y; in that case, if the last element of 'x
- * is the symbol &rest, it will be paired with a list containing the remaining
- * elements of 'y.
- */
-static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
-{
-	SEXPR head, node, node2;
-
-	if (p_null(x))
-		return a;
-
-	push3(x, y, a);
-
-	/* Handle the case of only one parameter called &rest */
-	if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-		node = p_cons(p_cons(p_car(x), y), s_nil_atom);
-		p_setcdr(node, a);
-		popn(3);
-		return node;
-	}
-
-	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
-	node = head;
-	x = p_cdr(x);
-	y = p_cdr(y);
-	while (!p_null(x)) {
-		if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-			node2 = p_cons(p_cons(p_car(x), y), s_nil_atom);
-			p_setcdr(node, node2);
-			node = node2;
-		} else {
-			node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
-			p_setcdr(node, node2);
-			node = node2;
-			y = p_cdr(y);
-		}
-		x = p_cdr(x);
-	}
-	p_setcdr(node, a);
-	popn(4);
-
-	return head;
-}
+/*********************************************************/
 
 struct builtin {
 	const char* id;
@@ -221,15 +95,69 @@ static struct builtin builtin_specials[] = {
 	{ "special", &special },
 };
 
-static SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
+static void install_builtin(const char *name, SEXPR e)
 {
-	return builtin_functions[i].fun(args, a);
+	SEXPR var;
+
+	var = make_literal(name, strlen(name));
+	s_env = p_add(var, e, s_env);
 }
 
-static SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
+static void install_builtin_functions(void)
 {
-	return builtin_specials[i].fun(args, a);
+	int i;
+
+	for (i = 0; i < NELEMS(builtin_functions); i++) {
+		install_builtin(builtin_functions[i].id,
+			make_builtin_function(i));
+	}
 }
+
+static void install_builtin_specials(void)
+{
+	int i;
+
+	for (i = 0; i < NELEMS(builtin_specials); i++) {
+		install_builtin(builtin_specials[i].id,
+			make_builtin_special(i));
+	}
+}
+
+static SEXPR apply_builtin(struct builtin *pbin, SEXPR args, SEXPR a)
+{
+	return pbin->fun(args, a);
+}
+
+SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
+{
+	assert(i >= 0 && i < NELEMS(builtin_functions));
+	return apply_builtin(&builtin_functions[i], args, a);
+}
+
+SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
+{
+	assert(i >= 0 && i < NELEMS(builtin_specials));
+	return apply_builtin(&builtin_specials[i], args, a);
+}
+
+static const char *builtin_name(struct builtin *pbin)
+{
+	return pbin->id;
+}
+
+const char *builtin_function_name(int i)
+{
+	assert(i >= 0 && i < NELEMS(builtin_functions));
+	return builtin_name(&builtin_functions[i]);
+}
+
+const char *builtin_special_name(int i)
+{
+	assert(i >= 0 && i < NELEMS(builtin_specials));
+	return builtin_name(&builtin_specials[i]);
+}
+
+/*********************************************************/
 
 static void load_init_file(void)
 {
@@ -523,7 +451,7 @@ static SEXPR eq(SEXPR e, SEXPR a)
 	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : s_nil_atom;
 }
 
-static SEXPR lambda(SEXPR e, SEXPR a)
+SEXPR lambda(SEXPR e, SEXPR a)
 {
 	return make_function(sexpr_index(e));
 }
@@ -569,301 +497,11 @@ static SEXPR equal(SEXPR e, SEXPR a)
 		return s_nil_atom;
 }
 
-/* eval each list member.  */
-static SEXPR p_evlis(SEXPR m, SEXPR a)
-{
-	SEXPR head, node, node2;
-	
-	if (p_null(m))
-		return m;
-
-	push2(m, a);
-	head = push(p_cons(p_eval(p_car(m), a), s_nil_atom));
-	node = head;
-	m = p_cdr(m);
-	while (!p_null(m)) {
-		node2 = p_cons(p_eval(p_car(m), a), s_nil_atom);
-		p_setcdr(node, node2);
-		node = node2;
-		m = p_cdr(m);
-	}
-	popn(3);
-	return head;
-}
-
-/* eval COND */
-static SEXPR p_evcon(SEXPR c, SEXPR a)
-{
-	for (;;) {
-		if (p_eq(p_eval(p_car(p_car(c)), a), s_true_atom)) {
-			return p_eval(p_car(p_cdr(p_car(c))), a);
-		} else {
-			c = p_cdr(c);
-		}
-	}
-}
-
-/* If tailrec != NULL, we will act tail recursive, that is, the last
- * expression in the function to apply will be returned unevaluated.
- * In that case, *tailrec will be set to 1 or 0.
- * If 1, it means that the SEXPR returned is the last expression of a
- * sequence and has not been evaluated. Eval can evaluate it and 'a2
- * will be the environment in which to evaluate.
- * This is to implement tail recursion, until a better idea.
- * If 0, the return value is already the final one, eval does not need to
- * evaluate anything.
- */
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
-{
-	SEXPR e1, r;
-	int celli;
-
-#if 0
-	printf("apply fn: ");
-	println(fn);
-	printf("x: ");
-	println(x);
-	printf("a: ");
-	println(a);
-#endif
-	if (tailrec) {
-		assert(a2);
-		*tailrec = 0;
-	}
-
-	push3(a, x, fn);
-	switch (sexpr_type(fn)) {
-	case SEXPR_BUILTIN_FUNCTION:
-		r = apply_builtin_function(sexpr_index(fn), x, a);
-		popn(3);
-		break;
-	case SEXPR_BUILTIN_SPECIAL:
-		r = apply_builtin_special(sexpr_index(fn), x, a);
-		popn(3);
-		break;
-	case SEXPR_FUNCTION:
-	case SEXPR_SPECIAL:
-		celli = sexpr_index(fn);
-		/* pair parameters with their arguments and append 'a. */
-		a = p_pairargs(cell_car(celli), x, a);
-		/* eval sequence except the last expression */
-		e1 = cell_cdr(celli);
-		while (!p_null(e1)) {
-			/* last expr */
-			if (p_null(p_cdr(e1))) {
-				break;
-			}
-			r = p_eval(p_car(e1), a);
-			e1 = p_cdr(e1);
-		}
-		if (!p_null(e1)) {
-			r = p_car(e1);
-		} else {
-			r = s_nil_atom;
-		}
-		popn(3);
-		if (!p_null(r)) {
-			if (tailrec == NULL) {
-				r = p_eval(r, a);
-			} else {
-				*tailrec = 1;
-				*a2 = a;
-			}
-		}
-		break;
-	default:
-		throw_err();
-	}
-
-	return r;
-}
-
-static int s_evalc = 0;
-
-static int listlen(SEXPR e)
-{
-	int n;
-
-	if (!p_consp(e))
-		return 0;
-
-	n = 0;
-	while (!p_null(e)) {
-		n++;
-		e = p_cdr(e);
-	}
-	return n;
-}
-
-static SEXPR p_eval(SEXPR e, SEXPR a)
-{
-	int tailrec, t;
-	SEXPR c, e1, a2;
-	int celli;
-
-	s_evalc++;
-#if 0
-	printf("eval stack %d\n", s_evalc);
-	println(s_stack);
-#endif
-
-again:  switch (sexpr_type(e)) {
-	case SEXPR_NUMBER:
-		s_evalc--;
-		return e;
-	case SEXPR_LITERAL:
-		c = p_assoc(e, a);
-		if (p_null(c)) {
-			c = p_assoc(e, s_env);
-		}
-		c = p_cdr(c);
-		s_evalc--;
-		return c;
-	case SEXPR_CONS:
-		if (s_debug) {
-			printf("eval: ");
-			println(e);
-			printf("a: ");
-			println(a);
-		}
-		/* evaluate the operator */
-		push2(a, e);
-		c = p_eval(p_car(e), a);
-		t = sexpr_type(c);
-		switch (t) {
-		case SEXPR_BUILTIN_SPECIAL:
-		case SEXPR_SPECIAL:
-			/* special forms evaluate the arguments on demand */
-			popn(2);
-			c = p_apply(c, p_cdr(e), a, &tailrec, &a2);
-			break;
-		default:
-			/* evaluate the arguments */
-			push(c);
-			e1 = p_evlis(p_cdr(e), a);
-			popn(3);
-			if (t == SEXPR_CLOSURE) {
-				/* a closure overrides the environment
-				 * with its saved environment.
-				 */
-				celli = sexpr_index(c);
-				c = lambda(cell_car(celli), a);
-				a = cell_cdr(celli);
-			}
-			c = p_apply(c, e1, a, &tailrec, &a2);
-		}
-		if (tailrec) {
-			e = c;
-			a = a2;
-			goto again;
-		}
-		if(s_debug) {
-			printf("r: ");
-			println(c);
-		}
-		s_evalc--;
-		return c;
-
-	default:
-		throw_err();
-	}
-}
-
 static SEXPR eval(SEXPR e, SEXPR a)
 {
 	e = p_eval(p_car(e), a);
 	e = p_eval(e, a);
 	return e;
-}
-
-static void print(SEXPR sexpr)
-{
-	int i;
-
-	switch (sexpr_type(sexpr)) {
-	case SEXPR_CONS:
-		/* TODO: avoid infinite recursion */
-		i = sexpr_index(sexpr);
-		printf("(");
-		print(cell_car(i));
-		while (!p_null(cell_cdr(i))) {
-			sexpr = cell_cdr(i);
-			if (sexpr_type(sexpr) == SEXPR_CONS) {
-				i = sexpr_index(sexpr);
-				printf(" ");
-				print(cell_car(i));
-			} else {
-				printf(" . ");
-				print(sexpr);
-				break;
-			}
-		}
-		printf(")");
-		break;
-	case SEXPR_LITERAL:
-		printf("%s", sexpr_name(sexpr));
-		break;
-	case SEXPR_NUMBER:
-		printf("%g", sexpr_number(sexpr));
-		break;
-	case SEXPR_BUILTIN_FUNCTION:
-		printf("{builtin function %s}",
-			builtin_functions[sexpr_index(sexpr)].id);
-		break;
-	case SEXPR_BUILTIN_SPECIAL:
-		printf("{builtin special %s}",
-			builtin_specials[sexpr_index(sexpr)].id);
-		break;
-	case SEXPR_FUNCTION:
-		printf("{function}");
-#if 0
-		printf("(lambda ");
-		print(cell_car(sexpr_index(sexpr)));
-		print(cell_cdr(sexpr_index(sexpr))));
-		printf(")");
-#endif
-		break;
-	case SEXPR_SPECIAL:
-		printf("{special}");
-		break;
-	case SEXPR_CLOSURE:
-		printf("{closure}");
-		break;
-	}
-}
-
-static void println(SEXPR sexpr)
-{
-	print(sexpr);
-	printf("\n");
-}
-
-static void install_builtin(const char *name, SEXPR e)
-{
-	SEXPR var;
-
-	var = make_literal(name, strlen(name));
-	s_env = p_add(var, e, s_env);
-}
-
-static void install_builtin_functions(void)
-{
-	int i;
-
-	for (i = 0; i < NELEMS(builtin_functions); i++) {
-		install_builtin(builtin_functions[i].id,
-			make_builtin_function(i));
-	}
-}
-
-static void install_builtin_specials(void)
-{
-	int i;
-
-	for (i = 0; i < NELEMS(builtin_specials); i++) {
-		install_builtin(builtin_specials[i].id,
-			make_builtin_special(i));
-	}
 }
 
 static SEXPR gc(SEXPR e, SEXPR a)
@@ -898,13 +536,13 @@ int main(int argc, char* argv[])
 			} else if (errorc == ERRORC_SYNTAX) {
 				printf("lispe: syntax error\n");
 			} else {
-				println(p_eval(e, s_nil_atom));
+				p_println(p_eval(e, s_nil_atom));
 			}
 		} else {
 			printf("lispe: ** error **\n");
 			clear_stack();
 		}
-		// assert(p_equal(s_stack, s_nil_atom));
+		assert(stack_empty());
 	}
 
 	return 0;
