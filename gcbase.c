@@ -13,7 +13,7 @@ SEXPR s_nil_atom;
 SEXPR s_env;
 
 /* hidden environment, used to not gc quote, &rest, etc. */
-SEXPR s_hidenv;
+static SEXPR s_hidenv;
 
 /* current computation stack */
 static SEXPR s_stack;
@@ -24,6 +24,12 @@ static SEXPR s_cons_cdr;
 static SEXPR s_protect_a;
 static SEXPR s_protect_b;
 static SEXPR s_protect_c;
+
+/* Other precreated atoms */
+SEXPR s_true_atom;
+SEXPR s_quote_atom;
+SEXPR s_rest_atom;
+
 
 /* Makes an sexpr form two sexprs. */
 SEXPR p_cons(SEXPR first, SEXPR rest)
@@ -121,8 +127,8 @@ void popn(int n)
 	}
 }
 
-/* Marks a expression and subexpressions. */
-void gc_mark(SEXPR e)
+/* Marks an expression and subexpressions. */
+static void gc_mark(SEXPR e)
 {
 	int celli;
 
@@ -202,6 +208,20 @@ void p_gc(void)
 #endif
 }
 
+static void install_literals(void)
+{
+	s_env = p_add(s_nil_atom, s_nil_atom, s_env);
+
+	s_true_atom = make_literal("t", 1);
+	s_env = p_add(s_true_atom, s_true_atom, s_env);
+
+	s_quote_atom = make_literal("quote", 5);
+	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
+
+	s_rest_atom = make_literal("&rest", 5);
+	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
+}
+
 /* Init this module, in particular the nil atom and the free list of cells.
  * Must be done first, so that pop_free_cell() works.
  * Inits the environments and the internal stack.
@@ -230,5 +250,7 @@ void gcbase_init(void)
 	s_protect_a = s_nil_atom;
 	s_protect_b = s_nil_atom;
 	s_protect_c = s_nil_atom;
+
+	install_literals();
 }
 

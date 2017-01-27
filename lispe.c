@@ -1,4 +1,5 @@
 #include "common.h"
+#include "lex.h"
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -14,7 +15,6 @@ static void println(SEXPR sexpr);
 static int listlen(SEXPR e);
 
 static SEXPR p_evlis(SEXPR m, SEXPR a);
-static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
 static SEXPR p_eval(SEXPR e, SEXPR a);
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2);
 static SEXPR p_evcon(SEXPR c, SEXPR a);
@@ -50,17 +50,7 @@ static SEXPR null(SEXPR e, SEXPR a);
 static SEXPR gc(SEXPR e, SEXPR a);
 static SEXPR quit(SEXPR e, SEXPR a);
 
-enum {
-	ERRORC_OK,
-	ERRORC_EOF,
-	ERRORC_SYNTAX,
-};
-
 static jmp_buf buf; 
-
-static SEXPR s_true_atom;
-static SEXPR s_quote_atom;
-static SEXPR s_rest_atom;
 
 /*********************************************************
  * Exceptions.
@@ -236,334 +226,6 @@ static SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
 static SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
 {
 	return builtin_specials[i].fun(args, a);
-}
-
-struct input_channel {
-	FILE *file;
-};
-
-struct input_channel *read_console(struct input_channel *ic)
-{
-	ic->file = stdin;
-	return ic;
-}
-
-struct input_channel *read_file(struct input_channel *ic, FILE *fp)
-{
-	ic->file = fp;
-	return ic;
-}
-
-int getc_from_channel(struct input_channel *ic)
-{
-	return fgetc(ic->file);
-}
-
-enum {
-	T_ATOM = 1024,
-	T_NUMBER,
-};
-
-enum {
-	MAX_NAME = 32
-};
-
-struct token {
-	int type;
-	union {
-		struct {
-			char name[MAX_NAME];
-			int len;
-		} atom;
-		float number;
-	} value;
-};
-
-struct tokenizer {
-	struct input_channel *in;
-	struct token tok;
-	int peekc;
-};
-
-struct tokenizer *tokenize(struct input_channel *ic,
-	struct tokenizer *t)
-{
-	t->in = ic;
-	t->tok.type = EOF;
-	t->peekc = EOF;
-	return t;
-}
-
-static int is_id_start(int c)
-{
-	return isalpha(c) || (strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
-}
-
-static int is_id_next(int c)
-{
-	return isdigit(c) || isalpha(c) ||
-	       	(strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
-}
-
-struct token *pop_token(struct tokenizer *t)
-{
-	int c;
-	int i;
-	float n;
-
-again:	
-	if (t->peekc >= 0) {
-		c = t->peekc;
-		t->peekc = EOF;
-	} else {
-		c = getc_from_channel(t->in);
-	}
-
-	if (c == EOF) {
-		t->tok.type = EOF;
-	} else if (c == '(' || c == ')' || c == '.' || c == '\'') {
-		t->tok.type = c;
-	} else if (is_id_start(c)) {
-		t->tok.type = T_ATOM;
-		i = 0;
-		while (is_id_next(c)) {
-			if (i < MAX_NAME) {
-				t->tok.value.atom.name[i++] = c;
-			}
-			c = getc_from_channel(t->in);
-		}
-		t->tok.value.atom.len = i;
-		t->peekc = c;
-	} else if (isdigit(c)) {
-		t->tok.type = T_NUMBER;
-		n = 0.0f;
-		while (c == '0') {
-			c = getc_from_channel(t->in);
-		}
-		while (isdigit(c)) {
-			n = n * 10 + (c - '0');
-			c = getc_from_channel(t->in);
-		}
-		t->tok.value.number = n;
-		t->peekc = c;
-	} else if (isspace(c)) {
-		while (isspace(c)) {
-			c = getc_from_channel(t->in);
-		}
-		t->peekc = c;
-		goto again;
-	} else {
-		/* skip wrong token for now */
-		goto again;
-	}
-
-	return &t->tok;
-}
-
-struct token *peek_token(struct tokenizer *t)
-{
-	return &t->tok;
-}
-
-enum {
-	PARSER_NSTACK = 1024
-};
-
-struct parser {
-	struct tokenizer *tokenizer;
-	// char stack[PARSER_NSTACK];
-	// SEXPR retval[PARSER_NSTACK];
-	int sp;
-	// int state;
-};
-
-struct parser *parse(struct tokenizer *t, struct parser *p)
-{
-	p->tokenizer = t;
-	p->sp = 0;
-	// p->state = 0;
-	return p;
-}
-
-#define PARSER_PUSH(s)				\
-	if (p->sp == PARSER_NSTACK) {		\
-		goto error;			\
-	} else {				\
-		p->stack[p->sp++] = (s);	\
-		p->state = 0;			\
-		goto again;			\
-	}
-
-#define PARSER_POP(retv)			\
-	if (p->sp > 0)	{			\
-		pop_token(p->tokenizer);	\
-	}					\
-	if (p->sp == 0)	{			\
-		return retv;			\
-	} else {				\
-		p->state = p->stack[--p->sp];	\
-		p->retval[p->sp] = retv;	\
-		goto again;			\
-	}
-
-/*
- * Parses S-Expressions non recursively.
- * We manage our own stack.
- * Exits immediatly on error without needing stack unwinding.
- */
-#if 0
-SEXPR parse_sexpr(struct parser *p, int *iserror)
-{
-	struct token *tok;
-	SEXPR sexpr, car, cdr;
-
-	*iserror = 0;
-again:	switch (p->state) {
-	case 0:	tok = peek_token(p->tokenizer);
-		if (tok->type == T_ATOM) {			
-			sexpr = new_symbol(tok->value.atom.name, tok->value.atom.len);
-			PARSER_POP(sexpr);
-		} else if (tok->type == T_NUMBER) {
-			sexpr = make_number(tok->value.number);
-			PARSER_POP(sexpr);
-		} else if (tok->type == '(') {
-			tok = pop_token(p->tokenizer);
-			if (tok->type == ')') {
-				PARSER_POP(make_nil());
-			} else {
-				head = make_nil();
-			do {
-				PARSER_PUSH(1);
-	case 1:			if (is_nil(head)) {
-					head = make_cons(p->retval[p->sp], make_nil());
-					list = head;
-				} else {
-					list.cdr = make_cons(p->retval[p->sp], make_nil());
-					list = list.cdr;
-				}
-				if (tok->type == '.') {
-					pop_token(p->tokenizer);
-					PARSER_PUSH(2);
-	case 2:				cdr = p->retval[p->sp];
-					if (tok->type != ')') {
-						goto error;
-					}
-					sexpr = make_cons(car, cdr);
-					PARSER_POP(sexpr);
-				} else if (tok->type == ')') {
-					sexpr = make_cons(car, make_nil());
-					PARSER_POP(sexpr);
-				}
-			} while (1);
-		}
-	}
-
-error:	*iserror = 1;
-	return make_nil();
-}
-#endif
-
-static SEXPR parse_sexpr(struct parser *p, int *errorc);
-
-static SEXPR parse_list(struct parser *p, int *errorc)
-{
-	struct token *tok;
-	SEXPR car, cdr;
-
-	tok = peek_token(p->tokenizer);
-	if (tok->type == ')') {
-		return s_nil_atom;
-	}
-
-	car = parse_sexpr(p, errorc);
-	if (*errorc != ERRORC_OK)
-		goto error;
-
-	push(car);
-	if (tok->type == '.') {
-		pop_token(p->tokenizer);
-		cdr = parse_sexpr(p, errorc);
-	} else {
-		cdr = parse_list(p, errorc);
-	}
-	pop();
-
-	if (*errorc != ERRORC_OK)
-		goto error;
-
-	return p_cons(car, cdr);
-
-error:	if (*errorc == ERRORC_OK)
-	       	ERRORC_SYNTAX;
-	return s_nil_atom;
-}
-
-static SEXPR parse_quote(struct parser *p, int *errorc)
-{
-	SEXPR sexpr;
-
-	sexpr = parse_sexpr(p, errorc);
-	if (*errorc != ERRORC_OK)
-		return s_nil_atom;
-
-	sexpr = p_cons(sexpr, s_nil_atom);
-	sexpr = p_cons(s_quote_atom, sexpr);
-	return sexpr;
-}
-
-static SEXPR parse_sexpr(struct parser *p, int *errorc)
-{
-	struct token *tok;
-	SEXPR sexpr;
-
-	tok = peek_token(p->tokenizer);
-	if (tok->type == EOF) {
-		*errorc = ERRORC_EOF;
-		return s_nil_atom;
-	} else if (tok->type == T_ATOM) {	
-		sexpr = make_literal(tok->value.atom.name,
-			       	     tok->value.atom.len);
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
-	} else if (tok->type == T_NUMBER) {
-		sexpr = make_number(tok->value.number);
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
-	} else if (tok->type == '\'') {
-		pop_token(p->tokenizer);
-		return parse_quote(p, errorc);
-	} else if (tok->type == '(') {
-		p->sp++;
-		pop_token(p->tokenizer);
-		sexpr = parse_list(p, errorc);
-		if (*errorc != ERRORC_OK) {
-			goto error;
-		}
-		tok = peek_token(p->tokenizer);
-		if (tok->type != ')') {
-			goto error;
-		}
-		p->sp--;
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
-	}
-
-error:	if (*errorc != ERRORC_OK)
-		*errorc = ERRORC_SYNTAX;
-	return s_nil_atom;
-}
-
-static SEXPR get_sexpr(struct parser *p, int *errorc)
-{
-	*errorc = ERRORC_OK;
-	pop_token(p->tokenizer);
-	return parse_sexpr(p, errorc);
 }
 
 static void load_init_file(void)
@@ -896,11 +558,6 @@ static SEXPR body(SEXPR e, SEXPR a)
 	}
 }
 
-static SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
-{
-	return p_cons(p_cons(var, val), a);
-}
-
 static SEXPR equal(SEXPR e, SEXPR a)
 {
 	if (p_equal(p_car(e), p_car(p_cdr(e))))
@@ -1206,20 +863,6 @@ static void install_builtin_specials(void)
 	}
 }
 
-static void install_literals(void)
-{
-	s_env = p_add(s_nil_atom, s_nil_atom, s_env);
-
-	s_true_atom = make_literal("t", 1);
-	s_env = p_add(s_true_atom, s_true_atom, s_env);
-
-	s_quote_atom = make_literal("quote", 5);
-	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
-
-	s_rest_atom = make_literal("&rest", 5);
-	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
-}
-
 static SEXPR gc(SEXPR e, SEXPR a)
 {
 	p_gc();
@@ -1237,7 +880,6 @@ int main(int argc, char* argv[])
 	cellmark_init();
 	gcbase_init();
 
-	install_literals();
 	install_builtin_functions();
 	install_builtin_specials();
 

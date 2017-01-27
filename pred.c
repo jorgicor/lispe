@@ -40,3 +40,8 @@ SEXPR p_cdr(SEXPR e)
 
 	return cell_cdr(sexpr_index(e));
 }
+
+SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
+{
+	return p_cons(p_cons(var, val), a);
+}

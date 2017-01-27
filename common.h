@@ -5,6 +5,8 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
+
 #define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
 
 /* sexpr.c */
@@ -136,12 +138,15 @@ int p_symbolp(SEXPR e);
 int p_numberp(SEXPR e);
 SEXPR p_car(SEXPR e);
 SEXPR p_cdr(SEXPR e);
+SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
 
 /* gcbase.c */
 
 extern SEXPR s_nil_atom;
 extern SEXPR s_env;
-extern SEXPR s_hidenv;
+extern SEXPR s_true_atom;
+extern SEXPR s_quote_atom;
+extern SEXPR s_rest_atom;
 
 int pop_free_cell(void);
 SEXPR p_cons(SEXPR first, SEXPR rest);
@@ -156,6 +161,23 @@ void popn(int n);
 void p_gc(void);
 
 void gcbase_init(void);
+
+/* parse.c */
+
+struct parser {
+	struct tokenizer *tokenizer;
+	int sp;
+};
+
+struct parser *parse(struct tokenizer *t, struct parser *p);
+
+enum {
+	ERRORC_OK,
+	ERRORC_EOF,
+	ERRORC_SYNTAX,
+};
+
+SEXPR get_sexpr(struct parser *p, int *errorc);
 
 /* lispe.c */
 
