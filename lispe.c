@@ -595,7 +595,7 @@ static SEXPR p_cons(SEXPR first, SEXPR rest)
 
 	i = pop_free_cell();
 	set_cell_car(i, first);
-	set_cell_car(i, rest);
+	set_cell_cdr(i, rest);
 
 	s_cons_car = s_nil_atom;
 	s_cons_cdr = s_nil_atom;
