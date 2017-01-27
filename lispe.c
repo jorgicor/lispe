@@ -1,63 +1,13 @@
-#include "cells.h"
-#ifndef SEXPR_H
-#include "sexpr.h"
-#endif
-#ifndef STDIO_H
-#include <stdio.h>
-#endif
-#ifndef STDLIB_H
-#include <stdlib.h>
-#endif
-#ifndef STRING_H
-#include <string.h>
-#endif
-#ifndef CTYPE_H
-#include <ctype.h>
-#endif
-#ifndef SETJMP_H
-#include <setjmp.h>
-#endif
-#ifndef ASSERT_H
+#include "common.h"
 #include <assert.h>
-#endif
-#ifndef LIMITS_H
-#include <limits.h>
-#endif
-
-#define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
-
-typedef struct literal * LITERAL;
-
-enum {
-	SEXPR_CONS = 0 << 29,
-	SEXPR_LITERAL = 1 << 29,
-	SEXPR_NUMBER = 2 << 29,
-	SEXPR_BUILTIN_FUNCTION = 3 << 29,
-	SEXPR_BUILTIN_SPECIAL = 4 << 29,
-	SEXPR_FUNCTION = 5 << 29,
-	SEXPR_SPECIAL = 6 << 29,
-	SEXPR_CLOSURE = 7 << 29,
-};
-
-/* sexpr.c */
-
-SEXPR make_cons(int i);
-SEXPR make_literal(const char *s, int len);
-SEXPR make_number(float n);
-SEXPR make_builtin_function(int i);
-SEXPR make_builtin_special(int i);
-SEXPR make_function(int args_n_body);
-SEXPR make_special(int args_n_body);
-SEXPR make_closure(int lambda_n_alist);
-
-int sexpr_type(SEXPR e);
-int sexpr_index(SEXPR e);
-LITERAL sexpr_literal(SEXPR e);
-float sexpr_number(SEXPR e);
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <setjmp.h>
 
 static int s_debug = 0;
 
-static void p_gc(void);
 static void print(SEXPR sexpr);
 static void println(SEXPR sexpr);
 
@@ -100,420 +50,42 @@ static SEXPR null(SEXPR e, SEXPR a);
 static SEXPR gc(SEXPR e, SEXPR a);
 static SEXPR quit(SEXPR e, SEXPR a);
 
-static int pop_free_cell(void);
-
 enum {
 	ERRORC_OK,
 	ERRORC_EOF,
 	ERRORC_SYNTAX,
 };
 
-enum { NCELLMARK = (NCELL / 16) + ((NCELL % 16) ? 1 : 0) };
-
-/* We use 2 bits for each cell, with the values:
- * CELL_FREE, CELL_CREATED and CELL_USED.
- */
-static unsigned int s_cellmarks[NCELLMARK];
-
-enum {
-	CELL_FREE,
-	CELL_CREATED,
-	CELL_USED
-};
-
 static jmp_buf buf; 
 
 static SEXPR s_true_atom;
-static SEXPR s_nil_atom;
 static SEXPR s_quote_atom;
 static SEXPR s_rest_atom;
-
-/* global environment */
-static SEXPR s_env;
-
-/* hidden environment, used to not gc quote, &rest, etc. */
-static SEXPR s_hidenv;
-
-/* current computation stack */
-static SEXPR s_stack;
-
-/* protected current cons computation */
-static SEXPR s_cons_car;
-static SEXPR s_cons_cdr;
-
-/* protected push */
-static SEXPR s_protect_a;
-static SEXPR s_protect_b;
-static SEXPR s_protect_c;
-
-/* 
- * List of free cells.
- */
-static SEXPR s_free_cells;
 
 /*********************************************************
  * Exceptions.
  *********************************************************/
 
-static void throw_err(void)
+void throw_err(void)
 {
 	longjmp(buf, 1);
-}
-
-/*********************************************************
- * Cell marking for gc.
- *********************************************************/
-
-/* 'mark must be CELL_FREE, CELL_CREATED or CELL_USED. */
-static void mark_cell(int i, int mark)
-{
-	int w;
-
-	w = i >> 4;
-	assert(w >= 0 && w < NCELLMARK);
-	i = (i & 15) << 1;
-	s_cellmarks[w] = (s_cellmarks[w] & ~(3 << i)) | (mark << i);
-}
-
-/* Returns CELL_FREE, CELL_CREATED or CELL_USED. */
-static int cell_mark(int i)
-{
-	int w;
-
-	w = i >> 4;
-	assert(w >= 0 && w < NCELLMARK);
-	i = (i & 15) << 1;
-	return (s_cellmarks[w] & (3 << i)) >> i;
-}
-
-static int if_cell_mark(int i, int ifmark, int thenmark)
-{
-	int w;
-	unsigned int mask;
-
-	w = i >> 4;
-	assert(w >= 0 && w < NCELLMARK);
-	i = (i & 15) << 1;
-	mask = 3 << i;
-	if ((s_cellmarks[w] & mask) == (ifmark << i)) {
-		s_cellmarks[w] = (s_cellmarks[w] & ~mask) | (thenmark << i);
-		return 1;
-	}
-
-	return 0;
-}
-
-/*********************************************************
- * Hash table for literals.
- *********************************************************/
-
-/* prime */
-enum { NCHAINS = 16381 };
-
-/*
- * next: next in hash table.
- * celli: index of literal cell (car: name, cdr: nil)
- */
-struct literal {
-	struct lit_hasht_head *next;
-	int celli;
-	char name[];
-};
-
-/* struct lit_hasht_head is a subtype of struct literal, that is:
- * struct literal *lit;
- * struct lit_hasht_head *h;
- * h = (struct lit_hasht_head *) lit;
- */
-struct lit_hasht_head {
-	struct lit_hasht_head *next;
-};
-
-static struct lit_hasht_head s_hashtab[NCHAINS];
-
-/* Compares a string 'src of length 'len (not null terminated) with a
- * null terminated string 'cstr.
- */
-static int cmpstrlen(const char *src, int len, const char *cstr)
-{
-	int i;
-
-	for (i = 0; i < len && *cstr != '\0'; i++) {
-		if (src[i] < *cstr)
-			return -1;
-		else if (src[i] > *cstr)
-			return 1;
-		else
-			cstr++;
-	}
-
-	if (i == len && *cstr == 0)
-		return 0;
-	else if (i == len)
-		return -1;
-	else
-		return 1;
-}
-
-/* Hash the string in 'p of length 'len. */
-static unsigned int hash(const char *p, size_t len)
-{
-	unsigned int h;
-
-	h = 0;
-	while (len--) {
-		h = 31 * h + (unsigned char) *p;
-		p++;
-	}
-
-	return h;
-}
-
-/* If celli < 0 a new cell is requested if the literal was not already
- * in the hash table; if it was it is returned.
- * If celli >= 0, the literal is installed on that cell and installed in the
- * hash table (thus potentially producing duplicates).
- * This feature is only used to install "nil" the first time when the cells are
- * not linked on a free list.
- */
-SEXPR make_literal_in_cell(const char *s, int len, int celli)
-{
-	SEXPR e;
-	unsigned int h;
-	struct lit_hasht_head *q;
-	struct literal *p;
-
-	h = hash(s, len) % NCHAINS;
-	if (celli < 0) {
-		for (q = s_hashtab[h].next; q != NULL; q = q->next) {
-			p = (struct literal *) q;
-			if (cmpstrlen(s, len, p->name) == 0) {
-				e.type = SEXPR_LITERAL | p->celli;
-				return e;
-			}
-		}
-	}
-
-	p = malloc(sizeof(*p) + len + 1);
-	if (p == NULL) {
-		if (celli < 0) {
-			p_gc();
-			p = malloc(sizeof(*p) + len + 1);
-			if (p == NULL) {
-				goto fatal;
-			}
-		} else {
-			goto fatal;
-		}
-	}
-
-	if (celli < 0) {
-		celli = pop_free_cell();
-	}
-
-	memcpy(p->name, s, len);
-	p->name[len] = '\0';
-	p->celli = celli;
-
-#if 0
-	printf("literal created %s\n", p->name);
-#endif
-
-	p->next = s_hashtab[h].next;
-	s_hashtab[h].next = (struct lit_hasht_head *) p;
-
-	e.name = p->name;
-	set_cell_car(celli, e); 
-	mark_cell(celli, CELL_CREATED);
-	e.type = SEXPR_LITERAL | celli;
-	set_cell_cdr(celli, e);
-	return e;
-
-fatal:
-	fprintf(stderr, "lispe: out of memory\n");
-	exit(EXIT_FAILURE);
-	return e;
-}
-
-SEXPR make_literal(const char *s, int len)
-{
-	return make_literal_in_cell(s, len, -1);
-}
-
-const char *sexpr_name(SEXPR lit)
-{
-	return cell_car(sexpr_index(lit)).name;
-}
-
-int literals_equal(SEXPR lita, SEXPR litb)
-{
-	return lita.type == litb.type;
-}
-
-void gc_literals(void)
-{
-	int i, freed;
-	struct lit_hasht_head *prev, *p, *q;
-	struct literal *plit;
-
-	freed = 0;
-	for (i = 0; i < NCHAINS; i++) {
-		for (prev = &s_hashtab[i], p = prev->next;
-		     p != NULL;
-		     prev = p, p = prev->next)
-		{
-			plit = (struct literal *) p;
-			if (cell_mark(plit->celli) == CELL_CREATED) {
-				freed++;
-				printf("freed (%s)\n", plit->name);
-				prev->next = p->next;
-				free(p);
-				p = prev;
-			}
-		}
-	}
-
-	printf("[freed literals %d]\n", freed);
-}
-
-/*********************************************************
- * Making s-expressions.
- *********************************************************/
-
-#define MASK (((unsigned int) -1) >> 3)
-
-int sexpr_type(SEXPR e)
-{
-	return e.type & ~MASK;
-}
-
-int sexpr_index(SEXPR e)
-{
-	return e.type & MASK;
-}
-
-float sexpr_number(SEXPR e)
-{
-	return cell_car(sexpr_index(e)).number;
-}
-
-SEXPR make_cons(int i)
-{
-	SEXPR e;
-
-	e.type = SEXPR_CONS | i;
-	return e;
-}
-
-SEXPR make_number(float n)
-{
-	SEXPR e;
-	int celli;
-
-	celli = pop_free_cell();
-	e.number = n;
-	set_cell_car(celli, e);
-	e.type = SEXPR_NUMBER | celli;
-	return e;
-}
-
-SEXPR make_builtin_function(int table_index)
-{
-	SEXPR e;
-
-	e.type = SEXPR_BUILTIN_FUNCTION | table_index;
-	return e;
-}
-
-SEXPR make_builtin_special(int table_index)
-{
-	SEXPR e;
-
-	e.type = SEXPR_BUILTIN_SPECIAL | table_index;
-	return e;
-}
-
-SEXPR make_closure(int celli)
-{
-	SEXPR e;
-
-	e.type = SEXPR_CLOSURE | celli;
-	return e;
-}
-
-SEXPR make_function(int celli)
-{
-	SEXPR e;
-
-	e.type = SEXPR_FUNCTION | celli;
-	return e;
-}
-
-SEXPR make_special(int celli)
-{
-	SEXPR e;
-
-	e.type = SEXPR_SPECIAL | celli;
-	return e;
 }
 
 /*********************************************************
  * Internal predicates and functions, start with p_ 
  *********************************************************/
 
-static int p_symbolp(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_LITERAL;
-}
-
-static int p_numberp(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_NUMBER;
-}
-
-static int p_null(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_LITERAL && literals_equal(e, s_nil_atom);
-}
-
-/* TODO: atom x = not (consp x) ?? */
-static int p_atom(SEXPR x)
-{
-	return p_numberp(x) || p_symbolp(x);
-}
-
-static int p_consp(SEXPR e)
-{
-	return sexpr_type(e) == SEXPR_CONS;
-}
-
 static int p_eq(SEXPR x, SEXPR y)
 {
 	if (p_null(x) && p_null(y)) {
 		return 1;
 	} else if (p_symbolp(x) && p_symbolp(y)) {
-		return literals_equal(x, y);
+		return sexpr_eq(x, y);
 	} else if (p_numberp(x) && p_numberp(y)) {
 		return sexpr_number(x) == sexpr_number(y);
 	} else {
 		throw_err();
 	}
-}
-
-static SEXPR p_car(SEXPR e)
-{
-	if (!p_consp(e))
-		throw_err();
-
-	return cell_car(sexpr_index(e));
-}
-
-static SEXPR p_cdr(SEXPR e)
-{
-	if (!p_consp(e))
-		throw_err();
-
-	return cell_cdr(sexpr_index(e));
 }
 
 static int p_equal(SEXPR x, SEXPR y)
@@ -563,92 +135,6 @@ static SEXPR p_assoc(SEXPR x, SEXPR a)
 		} else {
 			a = p_cdr(a);
 		}
-	}
-}
-
-static int pop_free_cell(void)
-{
-	int i;
-
-	if (p_null(s_free_cells)) {
-		p_gc();
-		if (p_null(s_free_cells)) {
-			printf("lisep: No more free cells.\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	i = sexpr_index(s_free_cells);
-	mark_cell(i, CELL_CREATED);
-	s_free_cells = p_cdr(s_free_cells);
-	return i;
-}
-
-/* Makes an sexpr form two sexprs. */
-static SEXPR p_cons(SEXPR first, SEXPR rest)
-{
-	int i;
-	
-	/* protect */
-	s_cons_car = first;
-	s_cons_cdr = rest;
-
-	i = pop_free_cell();
-	set_cell_car(i, first);
-	set_cell_cdr(i, rest);
-
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
-
-	return make_cons(i);
-}
-
-/*********************************************************
- * push and pop to stack to protect from gc.
- *********************************************************/
-
-/* Protect expression form gc by pushin it to s_stack. Return e. */
-static SEXPR push(SEXPR e)
-{
-	s_stack = p_cons(e, s_stack);
-	return e;
-}
-
-static void push2(SEXPR e1, SEXPR e2)
-{
-	s_protect_a = e1;
-	s_protect_b = e2;
-	push(e1);
-	push(e2);
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-}
-
-static void push3(SEXPR e1, SEXPR e2, SEXPR e3)
-{
-	s_protect_a = e1;
-	s_protect_b = e2;
-	s_protect_c = e3;
-	push(e1);
-	push(e2);
-	push(e3);
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-	s_protect_c = s_nil_atom;
-}
-
-/* Pop last expression from stack. */
-static void pop(void)
-{
-	assert(!p_null(s_stack));
-	s_stack = p_cdr(s_stack);
-}
-
-static void popn(int n)
-{
-	assert(n >= 0);
-	while (n--) {
-		pop();
 	}
 }
 
@@ -1078,16 +564,6 @@ static SEXPR get_sexpr(struct parser *p, int *errorc)
 	*errorc = ERRORC_OK;
 	pop_token(p->tokenizer);
 	return parse_sexpr(p, errorc);
-}
-
-static void clear_stack(void)
-{
-	s_stack = s_nil_atom;
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-	s_protect_c = s_nil_atom;
 }
 
 static void load_init_file(void)
@@ -1744,85 +1220,6 @@ static void install_literals(void)
 	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
-static void gc_mark(SEXPR e)
-{
-	int celli;
-
-	switch (sexpr_type(e)) {
-	case SEXPR_NUMBER:
-	case SEXPR_LITERAL:
-		celli = sexpr_index(e);
-		if_cell_mark(celli, CELL_CREATED, CELL_USED);
-		break;
-	case SEXPR_FUNCTION:
-	case SEXPR_SPECIAL:
-	case SEXPR_CLOSURE:
-	case SEXPR_CONS:
-		celli = sexpr_index(e);
-		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {
-			gc_mark(cell_car(celli));
-			gc_mark(cell_cdr(celli));
-		}
-		break;
-	}
-}
-
-static void p_gc(void)
-{
-	int i, used, freed;
-	SEXPR e;
-
-	/* Mark used. */
-	gc_mark(s_hidenv);
-	gc_mark(s_env);
-	gc_mark(s_stack);
-	gc_mark(s_cons_car);
-	gc_mark(s_cons_cdr);
-	gc_mark(s_protect_a);
-	gc_mark(s_protect_b);
-	gc_mark(s_protect_c);
-
-	gc_literals();
-
-	/* Return to s_free_cells those marked as CELL_CREATED and set
-	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
-	 */
-	used = freed = 0;
-	for (i = 0; i < NCELL; i++) {
-		switch (cell_mark(i)) {
-		case CELL_CREATED:
-			freed++;
-			mark_cell(i, CELL_FREE);
-			set_cell_car(i, s_nil_atom);
-			if (p_null(s_free_cells)) {
-				set_cell_cdr(i, s_nil_atom);
-			} else {
-				set_cell_cdr(i,
-					make_cons(sexpr_index(s_free_cells)));
-			}
-			s_free_cells = make_cons(i);
-			break;
-		case CELL_USED:
-			used++;
-			mark_cell(i, CELL_CREATED);
-			break;
-		}
-	}
-
-	printf("[cells used %d, freed %d]\n", used, freed);
-
-#if 0
-	i = 0;
-	e = s_free_cells;
-	while (!p_null(e)) {
-		i++;
-		e = p_cdr(e);
-	}
-
-	printf("on free list %d\n", i);
-#endif
-}
-
 static SEXPR gc(SEXPR e, SEXPR a)
 {
 	p_gc();
@@ -1835,30 +1232,11 @@ int main(int argc, char* argv[])
 	SEXPR e;
 
 	printf("lispe minimal lisp 1.0\n\n");
-	printf("[ncells: %d, ncellmarks: %d]\n", NCELL, NCELLMARK);
-	printf("[bytes sexpr: %u, cell: %u, cells: %u, cellmarks: %u]\n",
-		sizeof(SEXPR),
-		cell_size(),
-		NCELL * cell_size(),
-	       	NCELLMARK * sizeof(s_cellmarks[0]));
 
-	s_nil_atom = make_literal_in_cell("nil", 3, 0);
-	s_stack = s_nil_atom;
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
+	cells_init();
+	cellmark_init();
+	gcbase_init();
 
-	/* link cells for the free cells list */
-	set_cell_car(NCELL - 1, s_nil_atom);
-	set_cell_cdr(NCELL - 1, s_nil_atom);
-	/* skip nil atom cell */
-	for (i = 1; i < NCELL - 1; i++) {
-		set_cell_car(i, s_nil_atom);
-		set_cell_cdr(i, make_cons(i + 1));
-	}
-	s_free_cells = make_cons(1);
-
-	s_env = s_nil_atom;
-	s_hidenv = s_nil_atom;
 	install_literals();
 	install_builtin_functions();
 	install_builtin_specials();
@@ -1881,7 +1259,7 @@ int main(int argc, char* argv[])
 			printf("lispe: ** error **\n");
 			clear_stack();
 		}
-		assert(p_equal(s_stack, s_nil_atom));
+		// assert(p_equal(s_stack, s_nil_atom));
 	}
 
 	return 0;

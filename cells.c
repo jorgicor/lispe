@@ -1,17 +1,10 @@
-#include "cells.h"
-
-#ifndef ASSERT_H
+#include "common.h"
 #include <assert.h>
-#endif
+#include <stdio.h>
 
 struct cell s_cells[NCELL];
 
 #ifdef RANGE_CHECK
-size_t cell_size(void)
-{
-	return sizeof(struct cell);
-}
-
 static void check_celli(int celli)
 {
 	assert(celli >= 0 && celli < NCELL);
@@ -41,3 +34,10 @@ void set_cell_cdr(int celli, SEXPR cdre)
 	s_cells[celli].cdr = cdre;
 }
 #endif
+
+void cells_init(void)
+{
+	printf("[ncells: %d, cell bytes: %u, cells array bytes: %u]\n",
+		NCELL, sizeof(s_cells[0]), NCELL * sizeof(s_cells[0]));
+}
+
