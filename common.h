@@ -39,16 +39,21 @@ union sexpr {
 
 typedef union sexpr SEXPR;
 
+enum { SHIFT_SEXPR = 28 };
+
 enum {
-	SEXPR_CONS = 0 << 29,
-	SEXPR_LITERAL = 1 << 29,
-	SEXPR_NUMBER = 2 << 29,
-	SEXPR_BUILTIN_FUNCTION = 3 << 29,
-	SEXPR_BUILTIN_SPECIAL = 4 << 29,
-	SEXPR_FUNCTION = 5 << 29,
-	SEXPR_SPECIAL = 6 << 29,
-	SEXPR_CLOSURE = 7 << 29,
+	SEXPR_NIL = 0,
+	SEXPR_CONS = 1 << SHIFT_SEXPR,
+	SEXPR_LITERAL = 2 << SHIFT_SEXPR,
+	SEXPR_NUMBER = 3 << SHIFT_SEXPR,
+	SEXPR_BUILTIN_FUNCTION = 4 << SHIFT_SEXPR,
+	SEXPR_BUILTIN_SPECIAL = 5 << SHIFT_SEXPR,
+	SEXPR_FUNCTION = 6 << SHIFT_SEXPR,
+	SEXPR_SPECIAL = 7 << SHIFT_SEXPR,
+	SEXPR_CLOSURE = 8 << SHIFT_SEXPR,
 };
+
+extern const SEXPR s_nil;
 
 int sexpr_eq(SEXPR e1, SEXPR e2);
 int sexpr_equal(SEXPR e1, SEXPR e2);
@@ -65,8 +70,6 @@ SEXPR make_builtin_special(int table_index);
 SEXPR make_function(int args_n_body_celli);
 SEXPR make_special(int args_n_body_celli);
 SEXPR make_closure(int lambda_n_alist_celli);
-
-SEXPR make_literal_in_cell(const char *s, int len, int celli);
 
 void gc_literals(void);
 
@@ -134,7 +137,6 @@ void p_println(SEXPR sexpr);
 
 /* gcbase.c */
 
-extern SEXPR s_nil_atom;
 extern SEXPR s_env;
 extern SEXPR s_true_atom;
 extern SEXPR s_quote_atom;

@@ -182,7 +182,7 @@ static void load_init_file(void)
 	do {
 		sexpr = get_sexpr(parse(&t, &p), &errorc);
 		if (errorc == ERRORC_OK) {
-			p_eval(sexpr, s_nil_atom); 
+			p_eval(sexpr, s_nil); 
 		}
 	} while (errorc == ERRORC_OK);
 
@@ -240,7 +240,7 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 	SEXPR val;
 	SEXPR bind;
 
-	val = s_nil_atom;
+	val = s_nil;
 	while (!p_null(sexpr)) {
 		var = p_car(sexpr);
 		if (!p_symbolp(var))
@@ -299,7 +299,7 @@ static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 			throw_err();
 		n2 = sexpr_number(p_car(e));
 		if (!fun(n, n2))
-			return s_nil_atom;
+			return s_nil;
 		n = n2;
 		e = p_cdr(e);
 	}
@@ -423,32 +423,32 @@ static SEXPR setcdr(SEXPR e, SEXPR a)
 
 static SEXPR atom(SEXPR e, SEXPR a)
 {
-	return p_atom(p_car(e)) ? s_true_atom : s_nil_atom;
+	return p_atom(p_car(e)) ? s_true_atom : s_nil;
 }
 
 static SEXPR symbolp(SEXPR e, SEXPR a)
 {
-	return p_symbolp(p_car(e)) ? s_true_atom : s_nil_atom;
+	return p_symbolp(p_car(e)) ? s_true_atom : s_nil;
 }
 
 static SEXPR consp(SEXPR e, SEXPR a)
 {
-	return p_consp(p_car(e)) ? s_true_atom : s_nil_atom;
+	return p_consp(p_car(e)) ? s_true_atom : s_nil;
 }
 
 static SEXPR numberp(SEXPR e, SEXPR a)
 {
-	return p_numberp(p_car(e)) ? s_true_atom : s_nil_atom;
+	return p_numberp(p_car(e)) ? s_true_atom : s_nil;
 }
 
 static SEXPR null(SEXPR e, SEXPR a)
 {
-	return p_null(p_car(e)) ? s_true_atom : s_nil_atom;
+	return p_null(p_car(e)) ? s_true_atom : s_nil;
 }
 
 static SEXPR eq(SEXPR e, SEXPR a)
 {
-	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : s_nil_atom;
+	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : s_nil;
 }
 
 SEXPR lambda(SEXPR e, SEXPR a)
@@ -483,7 +483,7 @@ static SEXPR body(SEXPR e, SEXPR a)
 		return p_cons(cell_car(celli), cell_cdr(celli));
 	case SEXPR_BUILTIN_FUNCTION:
 	case SEXPR_BUILTIN_SPECIAL:
-		return s_nil_atom;
+		return s_nil;
 	default:
 		throw_err();
 	}
@@ -494,7 +494,7 @@ static SEXPR equal(SEXPR e, SEXPR a)
 	if (p_equal(p_car(e), p_car(p_cdr(e))))
 		return s_true_atom;
 	else
-		return s_nil_atom;
+		return s_nil;
 }
 
 static SEXPR eval(SEXPR e, SEXPR a)
@@ -507,7 +507,7 @@ static SEXPR eval(SEXPR e, SEXPR a)
 static SEXPR gc(SEXPR e, SEXPR a)
 {
 	p_gc();
-	return s_nil_atom;
+	return s_nil;
 }
 
 int main(int argc, char* argv[])
@@ -536,7 +536,7 @@ int main(int argc, char* argv[])
 			} else if (errorc == ERRORC_SYNTAX) {
 				printf("lispe: syntax error\n");
 			} else {
-				p_println(p_eval(e, s_nil_atom));
+				p_println(p_eval(e, s_nil));
 			}
 		} else {
 			printf("lispe: ** error **\n");

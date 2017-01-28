@@ -15,12 +15,12 @@ static int s_debug = 0;
 
 int p_null(SEXPR e)
 {
-	return sexpr_eq(s_nil_atom, e);
+	return sexpr_eq(s_nil, e);
 }
 
 int p_symbolp(SEXPR e)
 {
-	return sexpr_type(e) == SEXPR_LITERAL;
+	return p_null(e) || sexpr_type(e) == SEXPR_LITERAL;
 }
 
 int p_numberp(SEXPR e)
@@ -40,6 +40,9 @@ int p_consp(SEXPR e)
 
 SEXPR p_car(SEXPR e)
 {
+	if (p_null(e))
+		return s_nil;
+
 	if (!p_consp(e))
 		throw_err();
 
@@ -48,6 +51,9 @@ SEXPR p_car(SEXPR e)
 
 SEXPR p_cdr(SEXPR e)
 {
+	if (p_null(e))
+		return s_nil;
+
 	if (!p_consp(e))
 		throw_err();
 
@@ -113,7 +119,7 @@ SEXPR p_assoc(SEXPR x, SEXPR a)
 {
 	for (;;) {
 		if (p_null(a)) {
-			return s_nil_atom;
+			return s_nil;
 		} else if (p_equal(p_car(p_car(a)), x)) {
 			return p_car(a);
 		} else {
@@ -141,23 +147,23 @@ static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
 
 	/* Handle the case of only one parameter called &rest */
 	if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-		node = p_cons(p_cons(p_car(x), y), s_nil_atom);
+		node = p_cons(p_cons(p_car(x), y), s_nil);
 		p_setcdr(node, a);
 		popn(3);
 		return node;
 	}
 
-	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom));
+	head = push(p_cons(p_cons(p_car(x), p_car(y)), s_nil));
 	node = head;
 	x = p_cdr(x);
 	y = p_cdr(y);
 	while (!p_null(x)) {
 		if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-			node2 = p_cons(p_cons(p_car(x), y), s_nil_atom);
+			node2 = p_cons(p_cons(p_car(x), y), s_nil);
 			p_setcdr(node, node2);
 			node = node2;
 		} else {
-			node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil_atom);
+			node2 = p_cons(p_cons(p_car(x), p_car(y)), s_nil);
 			p_setcdr(node, node2);
 			node = node2;
 			y = p_cdr(y);
@@ -179,11 +185,11 @@ SEXPR p_evlis(SEXPR m, SEXPR a)
 		return m;
 
 	push2(m, a);
-	head = push(p_cons(p_eval(p_car(m), a), s_nil_atom));
+	head = push(p_cons(p_eval(p_car(m), a), s_nil));
 	node = head;
 	m = p_cdr(m);
 	while (!p_null(m)) {
-		node2 = p_cons(p_eval(p_car(m), a), s_nil_atom);
+		node2 = p_cons(p_eval(p_car(m), a), s_nil);
 		p_setcdr(node, node2);
 		node = node2;
 		m = p_cdr(m);
@@ -260,7 +266,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		if (!p_null(e1)) {
 			r = p_car(e1);
 		} else {
-			r = s_nil_atom;
+			r = s_nil;
 		}
 		popn(3);
 		if (!p_null(r)) {
@@ -309,6 +315,7 @@ SEXPR p_eval(SEXPR e, SEXPR a)
 #endif
 
 again:  switch (sexpr_type(e)) {
+	case SEXPR_NIL:
 	case SEXPR_NUMBER:
 		s_evalc--;
 		return e;
@@ -375,6 +382,9 @@ void p_print(SEXPR sexpr)
 	int i;
 
 	switch (sexpr_type(sexpr)) {
+	case SEXPR_NIL:
+		printf("nil");
+		break;
 	case SEXPR_CONS:
 		/* TODO: avoid infinite recursion */
 		i = sexpr_index(sexpr);

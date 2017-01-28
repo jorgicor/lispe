@@ -2,18 +2,26 @@
 #include "cellmark.h"
 #include "common.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
+const SEXPR s_nil = { .type = SEXPR_NIL };
+
+enum {
+	TYPE_MASK = ((unsigned int) -1) << SHIFT_SEXPR,
+	INDEX_MASK = ~TYPE_MASK,
+};
+
 int sexpr_type(SEXPR e)
 {
-	return e.type & 0xe0000000;
+	return e.type & TYPE_MASK;
 }
 
 int sexpr_index(SEXPR e)
 {
-	return e.type & ~0xe0000000;
+	return e.type & INDEX_MASK;
 }
 
 float sexpr_number(SEXPR e)
@@ -107,11 +115,6 @@ SEXPR make_number(float n)
 	return e;
 }
 
-SEXPR make_literal(const char *s, int len)
-{
-	return make_literal_in_cell(s, len, -1);
-}
-
 /*********************************************************
  * Hash table for literals.
  *********************************************************/
@@ -178,48 +181,33 @@ static unsigned int hash(const char *p, size_t len)
 	return h;
 }
 
-/* If celli < 0 a new cell is requested if the literal was not already
- * in the hash table; if it was it is returned.
- * If celli >= 0, the literal is installed on that cell and installed in the
- * hash table (thus potentially producing duplicates).
- * This feature is only used to install 'nil the first time when the cells are
- * not yet linked on a free list.
- */
-SEXPR make_literal_in_cell(const char *s, int len, int celli)
+SEXPR make_literal(const char *s, int len)
 {
 	SEXPR e;
+	int celli;
 	unsigned int h;
 	struct lit_hasht_head *q;
 	struct literal *p;
 
 	h = hash(s, len) % NCHAINS;
-	if (celli < 0) {
-		for (q = s_hashtab[h].next; q != NULL; q = q->next) {
-			p = (struct literal *) q;
-			if (cmpstrlen(s, len, p->name) == 0) {
-				e.type = SEXPR_LITERAL | p->celli;
-				return e;
-			}
+	for (q = s_hashtab[h].next; q != NULL; q = q->next) {
+		p = (struct literal *) q;
+		if (cmpstrlen(s, len, p->name) == 0) {
+			e.type = SEXPR_LITERAL | p->celli;
+			return e;
 		}
 	}
 
 	p = malloc(sizeof(*p) + len + 1);
 	if (p == NULL) {
-		if (celli < 0) {
-			p_gc();
-			p = malloc(sizeof(*p) + len + 1);
-			if (p == NULL) {
-				goto fatal;
-			}
-		} else {
+		p_gc();
+		p = malloc(sizeof(*p) + len + 1);
+		if (p == NULL) {
 			goto fatal;
 		}
 	}
 
-	if (celli < 0) {
-		celli = pop_free_cell();
-	}
-
+	celli = pop_free_cell();
 	memcpy(p->name, s, len);
 	p->name[len] = '\0';
 	p->celli = celli;
@@ -235,7 +223,7 @@ SEXPR make_literal_in_cell(const char *s, int len, int celli)
 	set_cell_car(celli, e); 
 	mark_cell(celli, CELL_CREATED);
 	e.type = SEXPR_LITERAL | celli;
-	set_cell_cdr(celli, e);
+	/* set_cell_cdr(celli, e); */
 	return e;
 
 fatal:

@@ -8,9 +8,6 @@
 /* List of free cells.  */
 static SEXPR s_free_cells;
 
-/* The unique nil atom */
-SEXPR s_nil_atom;
-
 /* global environment */
 SEXPR s_env;
 
@@ -46,8 +43,8 @@ SEXPR p_cons(SEXPR first, SEXPR rest)
 	set_cell_car(i, first);
 	set_cell_cdr(i, rest);
 
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
+	s_cons_car = s_nil;
+	s_cons_cdr = s_nil;
 
 	return make_cons(i);
 }
@@ -76,12 +73,12 @@ int pop_free_cell(void)
 
 void clear_stack(void)
 {
-	s_stack = s_nil_atom;
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-	s_protect_c = s_nil_atom;
+	s_stack = s_nil;
+	s_cons_car = s_nil;
+	s_cons_cdr = s_nil;
+	s_protect_a = s_nil;
+	s_protect_b = s_nil;
+	s_protect_c = s_nil;
 }
 
 /* Protect expression form gc by pushin it to s_stack. Return e. */
@@ -97,8 +94,8 @@ void push2(SEXPR e1, SEXPR e2)
 	s_protect_b = e2;
 	push(e1);
 	push(e2);
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
+	s_protect_a = s_nil;
+	s_protect_b = s_nil;
 }
 
 void push3(SEXPR e1, SEXPR e2, SEXPR e3)
@@ -109,9 +106,9 @@ void push3(SEXPR e1, SEXPR e2, SEXPR e3)
 	push(e1);
 	push(e2);
 	push(e3);
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-	s_protect_c = s_nil_atom;
+	s_protect_a = s_nil;
+	s_protect_b = s_nil;
+	s_protect_c = s_nil;
 }
 
 /* Pop last expression from stack. */
@@ -131,7 +128,7 @@ void popn(int n)
 
 int stack_empty(void)
 {
-	return p_equal(s_stack, s_nil_atom);
+	return p_equal(s_stack, s_nil);
 }
 
 /* Marks an expression and subexpressions. */
@@ -185,9 +182,9 @@ void p_gc(void)
 		case CELL_CREATED:
 			freed++;
 			mark_cell(i, CELL_FREE);
-			set_cell_car(i, s_nil_atom);
+			set_cell_car(i, s_nil);
 			if (p_null(s_free_cells)) {
-				set_cell_cdr(i, s_nil_atom);
+				set_cell_cdr(i, s_nil);
 			} else {
 				set_cell_cdr(i,
 					make_cons(sexpr_index(s_free_cells)));
@@ -217,7 +214,10 @@ void p_gc(void)
 
 static void install_literals(void)
 {
-	s_env = p_add(s_nil_atom, s_nil_atom, s_env);
+	SEXPR e;
+
+	e = make_literal("nil", 3);
+	s_env = p_add(e, s_nil, s_env);
 
 	s_true_atom = make_literal("t", 1);
 	s_env = p_add(s_true_atom, s_true_atom, s_env);
@@ -229,7 +229,7 @@ static void install_literals(void)
 	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
-/* Init this module, in particular the nil atom and the free list of cells.
+/* Init this module, in particular the s_nil atom and the free list of cells.
  * Must be done first, so that pop_free_cell() works.
  * Inits the environments and the internal stack.
  */
@@ -237,26 +237,23 @@ void gcbase_init(void)
 {
 	int i;
 
-	s_nil_atom = make_literal_in_cell("nil", 3, 0);
-
 	/* link cells for the free cells list */
-	set_cell_car(NCELL - 1, s_nil_atom);
-	set_cell_cdr(NCELL - 1, s_nil_atom);
-	/* skip nil atom cell */
-	for (i = 1; i < NCELL - 1; i++) {
-		set_cell_car(i, s_nil_atom);
+	set_cell_car(NCELL - 1, s_nil);
+	set_cell_cdr(NCELL - 1, s_nil);
+	for (i = 0; i < NCELL - 1; i++) {
+		set_cell_car(i, s_nil);
 		set_cell_cdr(i, make_cons(i + 1));
 	}
-	s_free_cells = make_cons(1);
+	s_free_cells = make_cons(0);
 
-	s_env = s_nil_atom;
-	s_hidenv = s_nil_atom;
-	s_stack = s_nil_atom;
-	s_cons_car = s_nil_atom;
-	s_cons_cdr = s_nil_atom;
-	s_protect_a = s_nil_atom;
-	s_protect_b = s_nil_atom;
-	s_protect_c = s_nil_atom;
+	s_env = s_nil;
+	s_hidenv = s_nil;
+	s_stack = s_nil;
+	s_cons_car = s_nil;
+	s_cons_cdr = s_nil;
+	s_protect_a = s_nil;
+	s_protect_b = s_nil;
+	s_protect_c = s_nil;
 
 	install_literals();
 }
