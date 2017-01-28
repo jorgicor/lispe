@@ -6,7 +6,7 @@
 /* sexpr.c */
 
 /************************************************************/
-/* private, don't use directly, only exposed for efficiency */
+/* private, only sexpr.c uses this directly                 */
 /************************************************************/
 
 /*
@@ -77,7 +77,8 @@ enum {
 };
 
 /************************************************************/
-/* private, don't use directly, only exposed for efficiency */
+/* private, only cells.c uses this directly                 */
+/* exposed for efficiendy                                   */
 /************************************************************/
 
 struct cell {
