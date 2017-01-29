@@ -256,7 +256,7 @@ void gc_literals(void)
 		     prev = p, p = prev->next)
 		{
 			plit = (struct literal *) p;
-			if (!cell_mark(plit->celli)) {
+			if (!cell_marked(plit->celli)) {
 				freed++;
 				printf("freed (%s)\n", plit->name);
 				prev->next = p->next;
