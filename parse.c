@@ -1,4 +1,5 @@
 #include "config.h"
+#include "sexpr.h"
 #include "common.h"
 #include "lex.h"
 

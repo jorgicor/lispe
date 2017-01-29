@@ -1,5 +1,8 @@
 #include "config.h"
 #include "gc.h"
+#include "sexpr.h"
+#include "symbols.h"
+#include "numbers.h"
 #include "common.h"
 #include "cellmark.h"
 #include <assert.h>

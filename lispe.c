@@ -1,7 +1,10 @@
 #include "config.h"
 #include "cbase.h"
 #include "gc.h"
+#include "sexpr.h"
 #include "cellmark.h"
+#include "numbers.h"
+#include "symbols.h"
 #include "common.h"
 #include "lex.h"
 #include <assert.h>

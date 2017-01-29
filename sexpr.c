@@ -1,23 +1,8 @@
 #include "config.h"
-#include "cellmark.h"
-#include "common.h"
+#include "sexpr.h"
+#include "numbers.h"
+#include "symbols.h"
 #include <assert.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#if 0
-int sexpr_type(SEXPR e)
-{
-	return e & TYPE_MASK;
-}
-
-int sexpr_index(SEXPR e)
-{
-	return e & INDEX_MASK;
-}
-#endif
 
 float sexpr_number(SEXPR e)
 {
@@ -30,13 +15,6 @@ const char* sexpr_name(SEXPR e)
 	assert(sexpr_type(e) == SEXPR_SYMBOL);
 	return get_symbol(sexpr_index(e));
 }
-
-#if 0
-int sexpr_eq(SEXPR e1, SEXPR e2)
-{
-	return e1 == e2;
-}
-#endif
 
 int sexpr_equal(SEXPR e1, SEXPR e2)
 {
@@ -51,38 +29,6 @@ int sexpr_equal(SEXPR e1, SEXPR e2)
 		return sexpr_eq(e1, e2);
 	}
 }
-
-#if 0
-SEXPR make_cons(int celli)
-{
-	return SEXPR_CONS | celli;
-}
-
-SEXPR make_builtin_function(int table_index)
-{
-	return SEXPR_BUILTIN_FUNCTION | table_index;
-}
-
-SEXPR make_builtin_special(int table_index)
-{
-	return SEXPR_BUILTIN_SPECIAL | table_index;
-}
-
-SEXPR make_closure(int lambda_n_alist_celli)
-{
-	return SEXPR_CLOSURE | lambda_n_alist_celli;
-}
-
-SEXPR make_function(int args_n_body_celli)
-{
-	return SEXPR_FUNCTION | args_n_body_celli;
-}
-
-SEXPR make_special(int args_n_body_celli)
-{
-	return SEXPR_SPECIAL | args_n_body_celli;
-}
-#endif
 
 SEXPR make_number(float n)
 {

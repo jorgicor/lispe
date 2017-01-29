@@ -1,4 +1,5 @@
 #include "config.h"
+#include "numbers.h"
 #include "gc.h"
 #include <assert.h>
 #ifndef STDIO_H
