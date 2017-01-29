@@ -2,7 +2,7 @@
 #define SEXPR_H
 
 /*
- * We look at the 4 left bits of type.
+ * We look at the 4 left bits for type.
  * This gives SEXPR_CONS, SEXPR_SYMBOL, etc.
  * For:
  * SEXPR_NIL: 0.
@@ -18,11 +18,21 @@
  *               number (the cdr we don't care).
  * SEXPR_SYMBOL: bits(28..0) is index to a cell whose car is the pointer
  *                to the struct literal (the cdr we don't care).
+ *
+ * All the code uses SEXPRs through the functions and macros here listed.
+ * They don't mess with the bits directly.
+ * TODO: The exception is SEXPR_NIL, but it would be better to change it to
+ * something like make_nil().
  */
 
-typedef int SEXPR;
-
 enum { SHIFT_SEXPR = 28 };
+
+enum {
+	TYPE_MASK_SEXPR = ((unsigned int) -1) << SHIFT_SEXPR,
+	INDEX_MASK_SEXPR = ~TYPE_MASK_SEXPR,
+};
+
+typedef int SEXPR;
 
 enum {
 	SEXPR_NIL = 0,
@@ -36,23 +46,26 @@ enum {
 	SEXPR_CLOSURE = 8 << SHIFT_SEXPR,
 };
 
-enum {
-	TYPE_MASK_SEXPR = ((unsigned int) -1) << SHIFT_SEXPR,
-	INDEX_MASK_SEXPR = ~TYPE_MASK_SEXPR,
-};
-
 #define sexpr_type(e) ((e) & TYPE_MASK_SEXPR)
+
 #define sexpr_index(e) ((e) & INDEX_MASK_SEXPR)
+
 #define make_cons(celli) (SEXPR_CONS | (celli))
+
 #define sexpr_eq(e1, e2) ((e1) == (e2))
+
 #define make_builtin_function(table_index) \
 	(SEXPR_BUILTIN_FUNCTION | (table_index))
+
 #define make_builtin_special(table_index) \
 	(SEXPR_BUILTIN_SPECIAL | (table_index))
+
 #define make_closure(lambda_n_alist_celli) \
 	(SEXPR_CLOSURE | (lambda_n_alist_celli))
+
 #define make_function(args_n_body_celli) \
 	(SEXPR_FUNCTION | (args_n_body_celli))
+
 #define make_special(args_n_body_celli) \
 	(SEXPR_SPECIAL | (args_n_body_celli))
 
