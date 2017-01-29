@@ -140,7 +140,7 @@ static void gc_mark(SEXPR e)
 	case SEXPR_NUMBER:
 		mark_number(sexpr_index(e));
 		break;
-	case SEXPR_LITERAL:
+	case SEXPR_SYMBOL:
 		mark_symbol(sexpr_index(e));
 		break;
 	case SEXPR_FUNCTION:

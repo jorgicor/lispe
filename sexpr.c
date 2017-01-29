@@ -32,7 +32,7 @@ float sexpr_number(SEXPR e)
 
 const char* sexpr_name(SEXPR e)
 {
-	assert(sexpr_type(e) == SEXPR_LITERAL);
+	assert(sexpr_type(e) == SEXPR_SYMBOL);
 	return get_symbol(sexpr_index(e));
 }
 
@@ -119,7 +119,7 @@ SEXPR make_symbol(const char *s, int len)
 	SEXPR e;
 
 	i = install_symbol(s, len);
-	e.type = SEXPR_LITERAL | i;
+	e.type = SEXPR_SYMBOL | i;
 	return e;
 }
 

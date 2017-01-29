@@ -11,7 +11,7 @@
 
 /*
  * We look at the 3 left bits of type.
- * This gives SEXPR_CONS, SEXPR_LITERAL, etc.
+ * This gives SEXPR_CONS, SEXPR_SYMBOL, etc.
  * For:
  * SEXPR_CONS: bits(28..0) is index into cells.
  * SEXPR_BUILTIN_FUNCTION: bits(28..0) is index into table of builtin
@@ -23,7 +23,7 @@
  * SEXPR_CLOSURE: bits(28..0) is index into cells.
  * SEXPR_NUMBER: bits(28..0) is index to a cell whose car is the floating
  *               number (the cdr we don't care).
- * SEXPR_LITERAL: bits(28..0) is index to a cell whose car is the pointer
+ * SEXPR_SYMBOL: bits(28..0) is index to a cell whose car is the pointer
  *                to the struct literal (the cdr we don't care).
  */
 
@@ -44,7 +44,7 @@ enum { SHIFT_SEXPR = 28 };
 enum {
 	SEXPR_NIL = 0,
 	SEXPR_CONS = 1 << SHIFT_SEXPR,
-	SEXPR_LITERAL = 2 << SHIFT_SEXPR,
+	SEXPR_SYMBOL = 2 << SHIFT_SEXPR,
 	SEXPR_NUMBER = 3 << SHIFT_SEXPR,
 	SEXPR_BUILTIN_FUNCTION = 4 << SHIFT_SEXPR,
 	SEXPR_BUILTIN_SPECIAL = 5 << SHIFT_SEXPR,

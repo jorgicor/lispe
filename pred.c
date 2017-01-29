@@ -20,7 +20,7 @@ int p_null(SEXPR e)
 
 int p_symbolp(SEXPR e)
 {
-	return p_null(e) || sexpr_type(e) == SEXPR_LITERAL;
+	return p_null(e) || sexpr_type(e) == SEXPR_SYMBOL;
 }
 
 int p_numberp(SEXPR e)
@@ -40,8 +40,10 @@ int p_consp(SEXPR e)
 
 SEXPR p_car(SEXPR e)
 {
+	/*
 	if (p_null(e))
 		return s_nil;
+		*/
 
 	if (!p_consp(e))
 		throw_err();
@@ -51,8 +53,10 @@ SEXPR p_car(SEXPR e)
 
 SEXPR p_cdr(SEXPR e)
 {
+	/*
 	if (p_null(e))
 		return s_nil;
+		*/
 
 	if (!p_consp(e))
 		throw_err();
@@ -319,7 +323,7 @@ again:  switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
 		s_evalc--;
 		return e;
-	case SEXPR_LITERAL:
+	case SEXPR_SYMBOL:
 		c = p_assoc(e, a);
 		if (p_null(c)) {
 			c = p_assoc(e, s_env);
@@ -404,7 +408,7 @@ void p_print(SEXPR sexpr)
 		}
 		printf(")");
 		break;
-	case SEXPR_LITERAL:
+	case SEXPR_SYMBOL:
 		printf("%s", sexpr_name(sexpr));
 		break;
 	case SEXPR_NUMBER:
