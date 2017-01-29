@@ -62,7 +62,6 @@ int pop_free_cell(void)
 	}
 
 	celli = sexpr_index(s_free_cells);
-	mark_cell(celli, CELL_CREATED);
 	s_free_cells = p_cdr(s_free_cells);
 	return celli;
 }
@@ -142,14 +141,14 @@ static void gc_mark(SEXPR e)
 		break;
 	case SEXPR_LITERAL:
 		celli = sexpr_index(e);
-		if_cell_mark(celli, CELL_CREATED, CELL_USED);
+		mark_cell(celli);
 		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
 	case SEXPR_CLOSURE:
 	case SEXPR_CONS:
 		celli = sexpr_index(e);
-		if (if_cell_mark(celli, CELL_CREATED, CELL_USED)) {
+		if (if_cell_mark(celli)) {
 			gc_mark(cell_car(celli));
 			gc_mark(cell_cdr(celli));
 		}
@@ -176,32 +175,18 @@ void p_gc(void)
 	gc_literals();
 	gc_numbers();
 
-	/* Return to s_free_cells those marked as CELL_CREATED and set
-	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
-	 */
-	used = freed = 0;
+	used = 0;
+	s_free_cells = s_nil;
 	for (i = 0; i < NCELL; i++) {
-		switch (cell_mark(i)) {
-		case CELL_CREATED:
-			freed++;
-			mark_cell(i, CELL_FREE);
-			set_cell_car(i, s_nil);
-			if (p_null(s_free_cells)) {
-				set_cell_cdr(i, s_nil);
-			} else {
-				set_cell_cdr(i,
-					make_cons(sexpr_index(s_free_cells)));
-			}
-			s_free_cells = make_cons(i);
-			break;
-		case CELL_USED:
+		if (if_cell_unmark(i)) {
 			used++;
-			mark_cell(i, CELL_CREATED);
-			break;
+		} else {
+			set_cell_cdr(i, s_free_cells);
+			s_free_cells = make_cons(i);
 		}
 	}
 
-	printf("[cells used %d, freed %d]\n", used, freed);
+	printf("[cells used %d]\n", used);
 
 #if 0
 	i = 0;

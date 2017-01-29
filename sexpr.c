@@ -233,7 +233,6 @@ SEXPR make_literal(const char *s, int len)
 
 	e.name = p->name;
 	set_cell_car(celli, e); 
-	mark_cell(celli, CELL_CREATED);
 	e.type = SEXPR_LITERAL | celli;
 	/* set_cell_cdr(celli, e); */
 	return e;
@@ -257,7 +256,7 @@ void gc_literals(void)
 		     prev = p, p = prev->next)
 		{
 			plit = (struct literal *) p;
-			if (cell_mark(plit->celli) == CELL_CREATED) {
+			if (!cell_mark(plit->celli)) {
 				freed++;
 				printf("freed (%s)\n", plit->name);
 				prev->next = p->next;

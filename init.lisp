@@ -170,3 +170,4 @@
 (setq fact-iter (closure (p c m)
 	(cond ((> c m) p)
 	      (t (fact-iter (* c p) (+ c 1) m)))))
+
