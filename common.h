@@ -83,10 +83,6 @@ void init_numbers(void);
 
 /* cells.c */
 
-enum {
-	NCELL = 3000,
-};
-
 /************************************************************/
 /* private, only cells.c uses this directly                 */
 /* exposed for efficiendy                                   */

@@ -3,4 +3,6 @@
 
 #define RANGE_CHECK
 
+enum { NCELL = 3000 };
+
 #endif
