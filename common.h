@@ -1,18 +1,13 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define NELEMS(arr) (sizeof(arr)/sizeof(arr[0]))
-
 /* sexpr.c */
 
-/************************************************************/
-/* private, only sexpr.c uses this directly                 */
-/************************************************************/
-
 /*
- * We look at the 3 left bits of type.
+ * We look at the 4 left bits of type.
  * This gives SEXPR_CONS, SEXPR_SYMBOL, etc.
  * For:
+ * SEXPR_NIL: 0.
  * SEXPR_CONS: bits(28..0) is index into cells.
  * SEXPR_BUILTIN_FUNCTION: bits(28..0) is index into table of builtin
  *                         functions.
@@ -27,17 +22,7 @@
  *                to the struct literal (the cdr we don't care).
  */
 
-union sexpr {
-	int type;
-	float number;
-	const char *name;
-};
-
-/************************************************************/
-/* end of private section                                   */
-/************************************************************/
-
-typedef union sexpr SEXPR;
+typedef int SEXPR;
 
 enum { SHIFT_SEXPR = 28 };
 
@@ -53,23 +38,46 @@ enum {
 	SEXPR_CLOSURE = 8 << SHIFT_SEXPR,
 };
 
+enum {
+	TYPE_MASK_SEXPR = ((unsigned int) -1) << SHIFT_SEXPR,
+	INDEX_MASK_SEXPR = ~TYPE_MASK_SEXPR,
+};
+
 extern const SEXPR s_nil;
 
-int sexpr_eq(SEXPR e1, SEXPR e2);
+#define sexpr_type(e) ((e) & TYPE_MASK_SEXPR)
+#define sexpr_index(e) ((e) & INDEX_MASK_SEXPR)
+#define make_cons(celli) (SEXPR_CONS | (celli))
+#define sexpr_eq(e1, e2) ((e1) == (e2))
+#define make_builtin_function(table_index) \
+	(SEXPR_BUILTIN_FUNCTION | (table_index))
+#define make_builtin_special(table_index) \
+	(SEXPR_BUILTIN_SPECIAL | (table_index))
+#define make_closure(lambda_n_alist_celli) \
+	(SEXPR_CLOSURE | (lambda_n_alist_celli))
+#define make_function(args_n_body_celli) \
+	(SEXPR_FUNCTION | (args_n_body_celli))
+#define make_special(args_n_body_celli) \
+	(SEXPR_SPECIAL | (args_n_body_celli))
+
 int sexpr_equal(SEXPR e1, SEXPR e2);
-int sexpr_type(SEXPR e);
-int sexpr_index(SEXPR e);
 float sexpr_number(SEXPR e);
 const char* sexpr_name(SEXPR e);
 
-SEXPR make_cons(int celli);
 SEXPR make_symbol(const char *s, int len);
 SEXPR make_number(float n);
+
+#if 0
+int sexpr_type(SEXPR e);
+int sexpr_index(SEXPR e);
+int sexpr_eq(SEXPR e1, SEXPR e2);
+SEXPR make_cons(int celli);
 SEXPR make_builtin_function(int table_index);
 SEXPR make_builtin_special(int table_index);
 SEXPR make_function(int args_n_body_celli);
 SEXPR make_special(int args_n_body_celli);
 SEXPR make_closure(int lambda_n_alist_celli);
+#endif
 
 /* numbers.c */
 
@@ -162,8 +170,6 @@ void push3(SEXPR e1, SEXPR e2, SEXPR e3);
 void pop(void);
 void popn(int n);
 int stack_empty(void);
-
-void p_gc(void);
 
 void gcbase_init(void);
 

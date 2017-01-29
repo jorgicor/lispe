@@ -7,22 +7,19 @@
 #include <stdio.h>
 #include <string.h>
 
-const SEXPR s_nil = { .type = SEXPR_NIL };
+const SEXPR s_nil = SEXPR_NIL;
 
-enum {
-	TYPE_MASK = ((unsigned int) -1) << SHIFT_SEXPR,
-	INDEX_MASK = ~TYPE_MASK,
-};
-
+#if 0
 int sexpr_type(SEXPR e)
 {
-	return e.type & TYPE_MASK;
+	return e & TYPE_MASK;
 }
 
 int sexpr_index(SEXPR e)
 {
-	return e.type & INDEX_MASK;
+	return e & INDEX_MASK;
 }
+#endif
 
 float sexpr_number(SEXPR e)
 {
@@ -36,10 +33,12 @@ const char* sexpr_name(SEXPR e)
 	return get_symbol(sexpr_index(e));
 }
 
+#if 0
 int sexpr_eq(SEXPR e1, SEXPR e2)
 {
-	return e1.type == e2.type;
+	return e1 == e2;
 }
+#endif
 
 int sexpr_equal(SEXPR e1, SEXPR e2)
 {
@@ -55,71 +54,51 @@ int sexpr_equal(SEXPR e1, SEXPR e2)
 	}
 }
 
+#if 0
 SEXPR make_cons(int celli)
 {
-	SEXPR e;
-
-	e.type = SEXPR_CONS | celli;
-	return e;
+	return SEXPR_CONS | celli;
 }
 
 SEXPR make_builtin_function(int table_index)
 {
-	SEXPR e;
-
-	e.type = SEXPR_BUILTIN_FUNCTION | table_index;
-	return e;
+	return SEXPR_BUILTIN_FUNCTION | table_index;
 }
 
 SEXPR make_builtin_special(int table_index)
 {
-	SEXPR e;
-
-	e.type = SEXPR_BUILTIN_SPECIAL | table_index;
-	return e;
+	return SEXPR_BUILTIN_SPECIAL | table_index;
 }
 
 SEXPR make_closure(int lambda_n_alist_celli)
 {
-	SEXPR e;
-
-	e.type = SEXPR_CLOSURE | lambda_n_alist_celli;
-	return e;
+	return SEXPR_CLOSURE | lambda_n_alist_celli;
 }
 
 SEXPR make_function(int args_n_body_celli)
 {
-	SEXPR e;
-
-	e.type = SEXPR_FUNCTION | args_n_body_celli;
-	return e;
+	return SEXPR_FUNCTION | args_n_body_celli;
 }
 
 SEXPR make_special(int args_n_body_celli)
 {
-	SEXPR e;
-
-	e.type = SEXPR_SPECIAL | args_n_body_celli;
-	return e;
+	return SEXPR_SPECIAL | args_n_body_celli;
 }
+#endif
 
 SEXPR make_number(float n)
 {
 	int i;
-	SEXPR e;
 
 	i = install_number(n);
-	e.type = SEXPR_NUMBER | i;
-	return e;
+	return SEXPR_NUMBER | i;
 }
 
 SEXPR make_symbol(const char *s, int len)
 {
 	int i;
-	SEXPR e;
 
 	i = install_symbol(s, len);
-	e.type = SEXPR_SYMBOL | i;
-	return e;
+	return SEXPR_SYMBOL | i;
 }
 

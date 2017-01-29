@@ -1,4 +1,6 @@
 #include "config.h"
+#include "cbase.h"
+#include "gc.h"
 #include "cellmark.h"
 #include "common.h"
 #include "lex.h"
