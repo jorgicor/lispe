@@ -4,6 +4,7 @@
 #include "symbols.h"
 #include "numbers.h"
 #include "common.h"
+#include "cells.h"
 #include "cellmark.h"
 #include <assert.h>
 #include <stdlib.h>

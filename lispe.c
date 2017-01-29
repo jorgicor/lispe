@@ -1,7 +1,10 @@
 #include "config.h"
 #include "cbase.h"
 #include "gc.h"
+#ifndef SEXPR_H
 #include "sexpr.h"
+#endif
+#include "cells.h"
 #include "cellmark.h"
 #include "numbers.h"
 #include "symbols.h"

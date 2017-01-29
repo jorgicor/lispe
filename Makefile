@@ -21,5 +21,7 @@ symbols.c lispe.c: cbase.h
 
 symbols.c sexpr.c gcbase.c lispe.c: symbols.h numbers.h
 
+cells.c pred.c gcbase.c lispe.c: cells.h
+
 clean:
 	rm -f $(OBJS)

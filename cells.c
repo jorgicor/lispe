@@ -1,5 +1,8 @@
 #include "config.h"
+#include "cells.h"
+#ifndef SEXPR_H
 #include "sexpr.h"
+#endif
 #include "common.h"
 #include <assert.h>
 #include <stdio.h>

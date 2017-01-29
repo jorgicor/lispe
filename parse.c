@@ -1,5 +1,7 @@
 #include "config.h"
+#ifndef SEXPR_H
 #include "sexpr.h"
+#endif
 #include "common.h"
 #include "lex.h"
 
