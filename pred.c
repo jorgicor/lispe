@@ -40,10 +40,8 @@ int p_consp(SEXPR e)
 
 SEXPR p_car(SEXPR e)
 {
-	/*
 	if (p_null(e))
 		return s_nil;
-		*/
 
 	if (!p_consp(e))
 		throw_err();
@@ -53,10 +51,8 @@ SEXPR p_car(SEXPR e)
 
 SEXPR p_cdr(SEXPR e)
 {
-	/*
 	if (p_null(e))
 		return s_nil;
-		*/
 
 	if (!p_consp(e))
 		throw_err();
@@ -327,6 +323,9 @@ again:  switch (sexpr_type(e)) {
 		c = p_assoc(e, a);
 		if (p_null(c)) {
 			c = p_assoc(e, s_env);
+		}
+		if (p_null(c)) {
+			throw_err(); /* unbound symbol */
 		}
 		c = p_cdr(c);
 		s_evalc--;
