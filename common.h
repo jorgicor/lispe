@@ -73,6 +73,14 @@ SEXPR make_closure(int lambda_n_alist_celli);
 
 void gc_literals(void);
 
+/* numbers.c */
+
+int install_number(float n);
+float get_number(int i);
+void mark_number(int i);
+void gc_numbers(void);
+void init_numbers(void);
+
 /* cells.c */
 
 enum {

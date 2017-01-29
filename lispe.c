@@ -519,6 +519,7 @@ int main(int argc, char* argv[])
 
 	cells_init();
 	cellmark_init();
+	init_numbers();
 	gcbase_init();
 
 	install_builtin_functions();

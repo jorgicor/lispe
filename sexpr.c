@@ -27,7 +27,7 @@ int sexpr_index(SEXPR e)
 float sexpr_number(SEXPR e)
 {
 	assert(sexpr_type(e) == SEXPR_NUMBER);
-	return cell_car(sexpr_index(e)).number;
+	return get_number(sexpr_index(e));
 }
 
 const char* sexpr_name(SEXPR e)
@@ -105,6 +105,17 @@ SEXPR make_special(int args_n_body_celli)
 
 SEXPR make_number(float n)
 {
+	int i;
+	SEXPR e;
+
+	i = install_number(n);
+	e.type = SEXPR_NUMBER | i;
+	return e;
+}
+
+#if 0
+SEXPR make_number(float n)
+{
 	SEXPR e;
 	int celli;
 
@@ -114,6 +125,7 @@ SEXPR make_number(float n)
 	e.type = SEXPR_NUMBER | celli;
 	return e;
 }
+#endif
 
 /*********************************************************
  * Hash table for literals.

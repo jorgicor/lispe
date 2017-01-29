@@ -138,6 +138,8 @@ static void gc_mark(SEXPR e)
 
 	switch (sexpr_type(e)) {
 	case SEXPR_NUMBER:
+		mark_number(sexpr_index(e));
+		break;
 	case SEXPR_LITERAL:
 		celli = sexpr_index(e);
 		if_cell_mark(celli, CELL_CREATED, CELL_USED);
@@ -172,6 +174,7 @@ void p_gc(void)
 	gc_mark(s_protect_c);
 
 	gc_literals();
+	gc_numbers();
 
 	/* Return to s_free_cells those marked as CELL_CREATED and set
 	 * them to CELL_FREE. Set all marked as CELL_USED to CELL_CREATED.
