@@ -7,8 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-const SEXPR s_nil = SEXPR_NIL;
-
 #if 0
 int sexpr_type(SEXPR e)
 {

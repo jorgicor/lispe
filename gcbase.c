@@ -44,8 +44,8 @@ SEXPR p_cons(SEXPR first, SEXPR rest)
 	set_cell_car(i, first);
 	set_cell_cdr(i, rest);
 
-	s_cons_car = s_nil;
-	s_cons_cdr = s_nil;
+	s_cons_car = SEXPR_NIL;
+	s_cons_cdr = SEXPR_NIL;
 
 	return make_cons(i);
 }
@@ -74,12 +74,12 @@ int pop_free_cell(void)
 
 void clear_stack(void)
 {
-	s_stack = s_nil;
-	s_cons_car = s_nil;
-	s_cons_cdr = s_nil;
-	s_protect_a = s_nil;
-	s_protect_b = s_nil;
-	s_protect_c = s_nil;
+	s_stack = SEXPR_NIL;
+	s_cons_car = SEXPR_NIL;
+	s_cons_cdr = SEXPR_NIL;
+	s_protect_a = SEXPR_NIL;
+	s_protect_b = SEXPR_NIL;
+	s_protect_c = SEXPR_NIL;
 }
 
 /* Protect expression form gc by pushin it to s_stack. Return e. */
@@ -95,8 +95,8 @@ void push2(SEXPR e1, SEXPR e2)
 	s_protect_b = e2;
 	push(e1);
 	push(e2);
-	s_protect_a = s_nil;
-	s_protect_b = s_nil;
+	s_protect_a = SEXPR_NIL;
+	s_protect_b = SEXPR_NIL;
 }
 
 void push3(SEXPR e1, SEXPR e2, SEXPR e3)
@@ -107,9 +107,9 @@ void push3(SEXPR e1, SEXPR e2, SEXPR e3)
 	push(e1);
 	push(e2);
 	push(e3);
-	s_protect_a = s_nil;
-	s_protect_b = s_nil;
-	s_protect_c = s_nil;
+	s_protect_a = SEXPR_NIL;
+	s_protect_b = SEXPR_NIL;
+	s_protect_c = SEXPR_NIL;
 }
 
 /* Pop last expression from stack. */
@@ -129,7 +129,7 @@ void popn(int n)
 
 int stack_empty(void)
 {
-	return p_equal(s_stack, s_nil);
+	return p_equal(s_stack, SEXPR_NIL);
 }
 
 /* Marks an expression and subexpressions. */
@@ -177,7 +177,7 @@ void p_gc(void)
 	gc_numbers();
 
 	used = 0;
-	s_free_cells = s_nil;
+	s_free_cells = SEXPR_NIL;
 	for (i = 0; i < NCELL; i++) {
 		if (if_cell_unmark(i)) {
 			used++;
@@ -206,7 +206,7 @@ static void install_symbols(void)
 	SEXPR e;
 
 	e = make_symbol("nil", 3);
-	s_env = p_add(e, s_nil, s_env);
+	s_env = p_add(e, SEXPR_NIL, s_env);
 
 	s_true_atom = make_symbol("t", 1);
 	s_env = p_add(s_true_atom, s_true_atom, s_env);
@@ -218,7 +218,7 @@ static void install_symbols(void)
 	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
-/* Init this module, in particular the s_nil atom and the free list of cells.
+/* Init this module, in particular the SEXPR_NIL atom and the free list of cells.
  * Must be done first, so that pop_free_cell() works.
  * Inits the environments and the internal stack.
  */
@@ -227,22 +227,22 @@ void gcbase_init(void)
 	int i;
 
 	/* link cells for the free cells list */
-	set_cell_car(NCELL - 1, s_nil);
-	set_cell_cdr(NCELL - 1, s_nil);
+	set_cell_car(NCELL - 1, SEXPR_NIL);
+	set_cell_cdr(NCELL - 1, SEXPR_NIL);
 	for (i = 0; i < NCELL - 1; i++) {
-		set_cell_car(i, s_nil);
+		set_cell_car(i, SEXPR_NIL);
 		set_cell_cdr(i, make_cons(i + 1));
 	}
 	s_free_cells = make_cons(0);
 
-	s_env = s_nil;
-	s_hidenv = s_nil;
-	s_stack = s_nil;
-	s_cons_car = s_nil;
-	s_cons_cdr = s_nil;
-	s_protect_a = s_nil;
-	s_protect_b = s_nil;
-	s_protect_c = s_nil;
+	s_env = SEXPR_NIL;
+	s_hidenv = SEXPR_NIL;
+	s_stack = SEXPR_NIL;
+	s_cons_car = SEXPR_NIL;
+	s_cons_cdr = SEXPR_NIL;
+	s_protect_a = SEXPR_NIL;
+	s_protect_b = SEXPR_NIL;
+	s_protect_c = SEXPR_NIL;
 
 	install_symbols();
 }

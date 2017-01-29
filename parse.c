@@ -77,7 +77,7 @@ again:	switch (p->state) {
 				head = make_nil();
 			do {
 				PARSER_PUSH(1);
-	case 1:			if (is_s_nil(head)) {
+	case 1:			if (is_SEXPR_NIL(head)) {
 					head = make_cons(p->retval[p->sp], make_nil());
 					list = head;
 				} else {
@@ -115,7 +115,7 @@ static SEXPR parse_list(struct parser *p, int *errorc)
 
 	tok = peek_token(p->tokenizer);
 	if (tok->type == ')') {
-		return s_nil;
+		return SEXPR_NIL;
 	}
 
 	car = parse_sexpr(p, errorc);
@@ -138,7 +138,7 @@ static SEXPR parse_list(struct parser *p, int *errorc)
 
 error:	if (*errorc == ERRORC_OK)
 	       	ERRORC_SYNTAX;
-	return s_nil;
+	return SEXPR_NIL;
 }
 
 static SEXPR parse_quote(struct parser *p, int *errorc)
@@ -147,9 +147,9 @@ static SEXPR parse_quote(struct parser *p, int *errorc)
 
 	sexpr = parse_sexpr(p, errorc);
 	if (*errorc != ERRORC_OK)
-		return s_nil;
+		return SEXPR_NIL;
 
-	sexpr = p_cons(sexpr, s_nil);
+	sexpr = p_cons(sexpr, SEXPR_NIL);
 	sexpr = p_cons(s_quote_atom, sexpr);
 	return sexpr;
 }
@@ -162,7 +162,7 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 	tok = peek_token(p->tokenizer);
 	if (tok->type == EOF) {
 		*errorc = ERRORC_EOF;
-		return s_nil;
+		return SEXPR_NIL;
 	} else if (tok->type == T_ATOM) {	
 		sexpr = make_symbol(tok->value.atom.name,
 			       	    tok->value.atom.len);
@@ -199,7 +199,7 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 
 error:	if (*errorc != ERRORC_OK)
 		*errorc = ERRORC_SYNTAX;
-	return s_nil;
+	return SEXPR_NIL;
 }
 
 SEXPR get_sexpr(struct parser *p, int *errorc)

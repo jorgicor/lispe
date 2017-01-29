@@ -43,8 +43,6 @@ enum {
 	INDEX_MASK_SEXPR = ~TYPE_MASK_SEXPR,
 };
 
-extern const SEXPR s_nil;
-
 #define sexpr_type(e) ((e) & TYPE_MASK_SEXPR)
 #define sexpr_index(e) ((e) & INDEX_MASK_SEXPR)
 #define make_cons(celli) (SEXPR_CONS | (celli))
