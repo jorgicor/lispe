@@ -164,8 +164,8 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 		*errorc = ERRORC_EOF;
 		return s_nil;
 	} else if (tok->type == T_ATOM) {	
-		sexpr = make_literal(tok->value.atom.name,
-			       	     tok->value.atom.len);
+		sexpr = make_symbol(tok->value.atom.name,
+			       	    tok->value.atom.len);
 		if (p->sp > 0) {
 			pop_token(p->tokenizer);
 		}

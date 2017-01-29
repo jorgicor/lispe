@@ -54,9 +54,10 @@ int pop_free_cell(void)
 	int celli;
 
 	if (p_null(s_free_cells)) {
+		printf("[gc: need cells]\n");
 		p_gc();
 		if (p_null(s_free_cells)) {
-			printf("lisep: No more free cells.\n");
+			fprintf(stderr, "lispe: out of cells\n");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -140,8 +141,7 @@ static void gc_mark(SEXPR e)
 		mark_number(sexpr_index(e));
 		break;
 	case SEXPR_LITERAL:
-		celli = sexpr_index(e);
-		mark_cell(celli);
+		mark_symbol(sexpr_index(e));
 		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
@@ -172,7 +172,7 @@ void p_gc(void)
 	gc_mark(s_protect_b);
 	gc_mark(s_protect_c);
 
-	gc_literals();
+	gc_symbols();
 	gc_numbers();
 
 	used = 0;
@@ -186,7 +186,7 @@ void p_gc(void)
 		}
 	}
 
-	printf("[cells used %d]\n", used);
+	printf("[gc: %d/%d cells]\n", used, NCELL);
 
 #if 0
 	i = 0;
@@ -200,20 +200,20 @@ void p_gc(void)
 #endif
 }
 
-static void install_literals(void)
+static void install_symbols(void)
 {
 	SEXPR e;
 
-	e = make_literal("nil", 3);
+	e = make_symbol("nil", 3);
 	s_env = p_add(e, s_nil, s_env);
 
-	s_true_atom = make_literal("t", 1);
+	s_true_atom = make_symbol("t", 1);
 	s_env = p_add(s_true_atom, s_true_atom, s_env);
 
-	s_quote_atom = make_literal("quote", 5);
+	s_quote_atom = make_symbol("quote", 5);
 	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
 
-	s_rest_atom = make_literal("&rest", 5);
+	s_rest_atom = make_symbol("&rest", 5);
 	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
@@ -243,6 +243,6 @@ void gcbase_init(void)
 	s_protect_b = s_nil;
 	s_protect_c = s_nil;
 
-	install_literals();
+	install_symbols();
 }
 

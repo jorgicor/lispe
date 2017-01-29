@@ -78,6 +78,6 @@ int if_cell_unmark(int celli)
 
 void cellmark_init(void)
 {
-	printf("[ncellmarks: %d, cellmarks array bytes: %u]\n",
+	printf("[cells: marks: %d, %u bytes]\n",
 		NCELLMARK, NCELLMARK * sizeof(s_cellmarks[0]));
 }

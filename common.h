@@ -63,15 +63,13 @@ float sexpr_number(SEXPR e);
 const char* sexpr_name(SEXPR e);
 
 SEXPR make_cons(int celli);
-SEXPR make_literal(const char *s, int len);
+SEXPR make_symbol(const char *s, int len);
 SEXPR make_number(float n);
 SEXPR make_builtin_function(int table_index);
 SEXPR make_builtin_special(int table_index);
 SEXPR make_function(int args_n_body_celli);
 SEXPR make_special(int args_n_body_celli);
 SEXPR make_closure(int lambda_n_alist_celli);
-
-void gc_literals(void);
 
 /* numbers.c */
 
@@ -80,6 +78,14 @@ float get_number(int i);
 void mark_number(int i);
 void gc_numbers(void);
 void init_numbers(void);
+
+/* symbols.c */
+
+int install_symbol(const char *s, int len);
+const char *get_symbol(int i);
+void mark_symbol(int i);
+void gc_symbols(void);
+void init_symbols(void);
 
 /* cells.c */
 

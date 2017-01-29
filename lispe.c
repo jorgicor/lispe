@@ -99,7 +99,7 @@ static void install_builtin(const char *name, SEXPR e)
 {
 	SEXPR var;
 
-	var = make_literal(name, strlen(name));
+	var = make_symbol(name, strlen(name));
 	s_env = p_add(var, e, s_env);
 }
 
@@ -520,6 +520,7 @@ int main(int argc, char* argv[])
 	cells_init();
 	cellmark_init();
 	init_numbers();
+	init_symbols();
 	gcbase_init();
 
 	install_builtin_functions();

@@ -38,7 +38,7 @@ void set_cell_cdr(int celli, SEXPR cdre)
 
 void cells_init(void)
 {
-	printf("[ncells: %d, cell bytes: %u, cells array bytes: %u]\n",
-		NCELL, sizeof(s_cells[0]), NCELL * sizeof(s_cells[0]));
+	printf("[cells: %d, %u bytes, 1 cell: %u bytes]\n",
+		NCELL, NCELL * sizeof(s_cells[0]), sizeof(s_cells[0]));
 }
 
