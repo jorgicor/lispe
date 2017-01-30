@@ -140,7 +140,7 @@ static SEXPR parse_list(struct parser *p, int *errorc)
 	return p_cons(car, cdr);
 
 error:	if (*errorc == ERRORC_OK)
-	       	ERRORC_SYNTAX;
+	       	*errorc = ERRORC_SYNTAX;
 	return SEXPR_NIL;
 }
 

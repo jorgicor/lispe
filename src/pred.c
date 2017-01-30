@@ -79,6 +79,7 @@ int p_eq(SEXPR x, SEXPR y)
 		return sexpr_number(x) == sexpr_number(y);
 	} else {
 		throw_err();
+		return SEXPR_NIL;
 	}
 }
 
@@ -237,6 +238,8 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 	printf("a: ");
 	println(a);
 #endif
+
+	r = SEXPR_NIL;
 	if (tailrec) {
 		assert(a2);
 		*tailrec = 0;
@@ -381,6 +384,7 @@ again:  switch (sexpr_type(e)) {
 
 	default:
 		throw_err();
+		return SEXPR_NIL;
 	}
 }
 

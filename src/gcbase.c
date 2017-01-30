@@ -164,8 +164,7 @@ static void gc_mark(SEXPR e)
 /* Collect garbage */
 void p_gc(void)
 {
-	int i, used, freed;
-	SEXPR e;
+	int i, used;
 
 	/* Mark used. */
 	gc_mark(s_hidenv);

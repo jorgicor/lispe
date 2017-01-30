@@ -208,7 +208,6 @@ static SEXPR read(int *errorc)
 	struct input_channel ic;
 	struct tokenizer t;
 	struct parser p;
-	SEXPR sexpr;
 
 	return get_sexpr(parse(tokenize(read_console(&ic), &t), &p),
 			 errorc);
@@ -293,7 +292,6 @@ static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
 
 static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 {
-	int b;
 	float n, n2;
 
 	e = p_evlis(e, a);
@@ -494,6 +492,7 @@ static SEXPR body(SEXPR e, SEXPR a)
 		return SEXPR_NIL;
 	default:
 		throw_err();
+		return SEXPR_NIL;
 	}
 }
 
@@ -520,7 +519,7 @@ static SEXPR gc(SEXPR e, SEXPR a)
 
 int main(int argc, char* argv[])
 {
-	int i, errorc;
+	int errorc;
 	SEXPR e;
 
 	printf("lispe minimal lisp 1.0\n\n");
