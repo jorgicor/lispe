@@ -60,11 +60,8 @@ enum {
 #define make_builtin_special(table_index) \
 	(SEXPR_BUILTIN_SPECIAL | (table_index))
 
-#define make_closure(lambda_n_alist_celli) \
-	(SEXPR_CLOSURE | (lambda_n_alist_celli))
-
-#define make_function(args_n_body_celli) \
-	(SEXPR_FUNCTION | (args_n_body_celli))
+#define make_function(lambda_n_alist_celli) \
+	(SEXPR_FUNCTION | (lambda_n_alist_celli))
 
 #define make_special(args_n_body_celli) \
 	(SEXPR_SPECIAL | (args_n_body_celli))

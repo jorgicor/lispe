@@ -35,8 +35,8 @@ static SEXPR quote(SEXPR e, SEXPR a);
 static SEXPR cond(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
+static SEXPR lambda(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
-static SEXPR closure(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
 static SEXPR setq(SEXPR sexpr, SEXPR a);
@@ -96,7 +96,6 @@ static struct builtin builtin_specials[] = {
 	{ "cond", &cond },
 	{ "eval", &eval },
 	{ "lambda", &lambda },
-	{ "closure", &closure },
 	{ "list", &list },
 	{ "quote", &quote },
 	{ "setq", &setq },
@@ -457,19 +456,16 @@ static SEXPR eq(SEXPR e, SEXPR a)
 	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : SEXPR_NIL;
 }
 
-SEXPR lambda(SEXPR e, SEXPR a)
-{
-	return make_function(sexpr_index(e));
-}
-
 static SEXPR special(SEXPR e, SEXPR a)
 {
 	return make_special(sexpr_index(e));
+	// return make_special(sexpr_index(p_cons(e, a)));
 }
 
-static SEXPR closure(SEXPR e, SEXPR a)
+static SEXPR lambda(SEXPR e, SEXPR a)
 {
-	return make_closure(sexpr_index(p_cons(e, a)));
+	/* e is the arguments and body */
+	return make_function(sexpr_index(p_cons(e, a)));
 }
 
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */

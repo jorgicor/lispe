@@ -245,7 +245,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		*tailrec = 0;
 	}
 
-	push3(a, x, fn);
+	push3(x, fn, a);
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
 		r = apply_builtin_function(sexpr_index(fn), x, a);
@@ -256,6 +256,15 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		popn(3);
 		break;
 	case SEXPR_FUNCTION:
+		/* a function (lambda) overrides the environment
+		 * with its saved environment.
+		 */
+		popn(2);
+		celli = sexpr_index(fn);
+		fn = cell_car(celli);
+		a = cell_cdr(celli);
+		push2(fn, a);
+		/* fall */
 	case SEXPR_SPECIAL:
 		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and append 'a. */
@@ -313,7 +322,6 @@ SEXPR p_eval(SEXPR e, SEXPR a)
 {
 	int tailrec, t;
 	SEXPR c, e1, a2;
-	int celli;
 
 	s_evalc++;
 #if 0
@@ -351,7 +359,7 @@ again:  switch (sexpr_type(e)) {
 		switch (t) {
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
-			/* special forms evaluate the arguments on demand */
+			/* special forms evaluate the arguments themselves */
 			popn(2);
 			c = p_apply(c, p_cdr(e), a, &tailrec, &a2);
 			break;
@@ -360,14 +368,6 @@ again:  switch (sexpr_type(e)) {
 			push(c);
 			e1 = p_evlis(p_cdr(e), a);
 			popn(3);
-			if (t == SEXPR_CLOSURE) {
-				/* a closure overrides the environment
-				 * with its saved environment.
-				 */
-				celli = sexpr_index(c);
-				c = lambda(cell_car(celli), a);
-				a = cell_cdr(celli);
-			}
 			c = p_apply(c, e1, a, &tailrec, &a2);
 		}
 		if (tailrec) {
@@ -440,9 +440,6 @@ void p_print(SEXPR sexpr)
 		break;
 	case SEXPR_SPECIAL:
 		printf("{special}");
-		break;
-	case SEXPR_CLOSURE:
-		printf("{closure}");
 		break;
 	}
 }

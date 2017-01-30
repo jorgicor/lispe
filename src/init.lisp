@@ -113,10 +113,10 @@
 	  (t (* n (fact (- n 1)))))))
 
 (setq make-counter (lambda (value)
-    (closure () (setq value (+ value 1)))))
+    (lambda () (setq value (+ value 1)))))
 
 (setq make-balance (lambda (balance)
-    (closure (amount) (setq balance (- balance amount)))))
+    (lambda (amount) (setq balance (- balance amount)))))
 
 (setq sqrt2 (lambda (x)
     (let ((abs nil)
@@ -157,7 +157,7 @@
 
 (define (cons2 x y)
   (let ((dispatch nil))
-    (setq dispatch (closure (m)
+    (setq dispatch (lambda (m)
 			    (cond ((eq m 0) x)
 				  ((eq m 1) y)
 				  (t 'error))))
@@ -167,7 +167,7 @@
     (eval (list 'setq x nil))))
 
 (setq factorial (lambda (n) (fact-iter 1 1 n)))
-(setq fact-iter (closure (p c m)
+(setq fact-iter (lambda (p c m)
 	(cond ((> c m) p)
 	      (t (fact-iter (* c p) (+ c 1) m)))))
 
