@@ -150,7 +150,7 @@ static void gc_mark(SEXPR e)
 		break;
 	case SEXPR_FUNCTION:
 	case SEXPR_SPECIAL:
-	case SEXPR_CLOSURE:
+	case SEXPR_DYN_FUNCTION:
 	case SEXPR_CONS:
 		celli = sexpr_index(e);
 		if (if_cell_mark(celli)) {

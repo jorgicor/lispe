@@ -36,6 +36,7 @@ static SEXPR cond(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
+static SEXPR dyn_lambda(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
@@ -96,6 +97,7 @@ static struct builtin builtin_specials[] = {
 	{ "cond", &cond },
 	{ "eval", &eval },
 	{ "lambda", &lambda },
+	{ "dyn-lambda", &dyn_lambda },
 	{ "list", &list },
 	{ "quote", &quote },
 	{ "setq", &setq },
@@ -221,7 +223,14 @@ static SEXPR quote(SEXPR e, SEXPR a)
 
 static SEXPR cond(SEXPR e, SEXPR a)
 {
-	return p_evcon(e, a);
+	// return p_evcon(e, a);
+	for (;;) {
+		if (p_eq(p_eval(p_car(p_car(c)), a), s_true_atom)) {
+			return p_car(p_cdr(p_car(c)));
+		} else {
+			c = p_cdr(c);
+		}
+	}
 }
 
 /* TODO: make builtin function so the arguments eval automatically? */
@@ -468,6 +477,11 @@ static SEXPR lambda(SEXPR e, SEXPR a)
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 
+static SEXPR dyn_lambda(SEXPR e, SEXPR a)
+{
+	return make_dyn_function(sexpr_index(e));
+}
+
 /* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
 static SEXPR body(SEXPR e, SEXPR a)
 {
@@ -477,9 +491,9 @@ static SEXPR body(SEXPR e, SEXPR a)
 	e = p_evlis(e, a);
 	e = p_car(e);
 	switch (sexpr_type(e)) {
-	case SEXPR_CLOSURE:
-		return cell_car(sexpr_index(e));
 	case SEXPR_FUNCTION:
+		return cell_car(sexpr_index(e));
+	case SEXPR_DYN_FUNCTION:
 	case SEXPR_SPECIAL:
 		celli = sexpr_index(e);
 		return p_cons(cell_car(celli), cell_cdr(celli));

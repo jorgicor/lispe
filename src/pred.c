@@ -265,6 +265,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		a = cell_cdr(celli);
 		push2(fn, a);
 		/* fall */
+	case SEXPR_DYN_FUNCTION:
 	case SEXPR_SPECIAL:
 		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and append 'a. */
