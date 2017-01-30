@@ -254,6 +254,8 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 	case SEXPR_BUILTIN_SPECIAL:
 		r = apply_builtin_special(sexpr_index(fn), x, a);
 		popn(3);
+		*tailrec = 1;
+		*a2 = a;
 		break;
 	case SEXPR_FUNCTION:
 		/* a function (lambda) overrides the environment
