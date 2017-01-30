@@ -67,5 +67,6 @@ SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a);
 SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a);
 const char *builtin_function_name(int i);
 const char *builtin_special_name(int i);
+int builtin_special_tailrec(int i);
 
 #endif

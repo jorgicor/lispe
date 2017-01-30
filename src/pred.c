@@ -15,7 +15,7 @@
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 0;
+static int s_debug = 1;
 
 int p_null(SEXPR e)
 {
@@ -252,10 +252,12 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		popn(3);
 		break;
 	case SEXPR_BUILTIN_SPECIAL:
+		*tailrec = builtin_special_tailrec(sexpr_index(fn));
 		r = apply_builtin_special(sexpr_index(fn), x, a);
 		popn(3);
-		*tailrec = 1;
-		*a2 = a;
+		if (*tailrec) {
+			*a2 = a;
+		}
 		break;
 	case SEXPR_FUNCTION:
 		/* a function (lambda) overrides the environment
@@ -329,12 +331,17 @@ SEXPR p_eval(SEXPR e, SEXPR a)
 	s_evalc++;
 #if 0
 	printf("eval stack %d\n", s_evalc);
-	p_println(s_stack);
+	// p_println(a);
 #endif
 
 again:  switch (sexpr_type(e)) {
 	case SEXPR_NIL:
 	case SEXPR_NUMBER:
+	case SEXPR_BUILTIN_FUNCTION:
+	case SEXPR_BUILTIN_SPECIAL:
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
+	case SEXPR_DYN_FUNCTION:
 		s_evalc--;
 		return e;
 	case SEXPR_SYMBOL:
