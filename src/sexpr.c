@@ -1,4 +1,4 @@
-#include "config.h"
+#include "cfg.h"
 #include "sexpr.h"
 #include "numbers.h"
 #include "symbols.h"

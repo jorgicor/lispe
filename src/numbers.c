@@ -1,4 +1,4 @@
-#include "config.h"
+#include "cfg.h"
 #include "numbers.h"
 #include "gc.h"
 #include <assert.h>

@@ -1,4 +1,4 @@
-#include "config.h"
+#include "cfg.h"
 #ifndef SEXPR_H
 #include "sexpr.h"
 #endif
