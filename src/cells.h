@@ -1,6 +1,10 @@
 #ifndef CELLS_H
 #define CELLS_H
 
+#ifndef CFG_H
+#include "cfg.h"
+#endif
+
 #ifndef SEXPR_H
 #include "sexpr.h"
 #endif
@@ -23,7 +27,7 @@ extern struct cell s_cells[];
 /* end of private section                                   */
 /************************************************************/
 
-#ifdef RANGE_CHECK
+#ifdef PP_RANGECHECKS
 
 SEXPR cell_car(int celli);
 SEXPR cell_cdr(int celli);

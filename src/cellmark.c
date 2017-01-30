@@ -8,7 +8,7 @@ enum { NCELLMARK = (NCELL / 32) + ((NCELL % 32) ? 1 : 0) };
 /* We use 1 bit for each cell. */
 static unsigned int s_cellmarks[NCELLMARK];
 
-#ifdef RANGE_CHECK
+#ifdef PP_RANGECHECKS
 #define check_celli(i) assert(i >= 0 && i < NCELL)
 #define check_marki(i) assert(i >= 0 && i < NCELLMARK)
 #else

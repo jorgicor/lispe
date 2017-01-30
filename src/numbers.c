@@ -22,7 +22,7 @@ enum { N_NUM_MARKS = (N_NUMBERS / 32) + ((N_NUMBERS % 32) ? 1 : 0) };
 
 static unsigned int s_num_marks[N_NUM_MARKS];
 
-#ifdef RANGE_CHECK
+#ifdef PP_RANGECHECKS
 #define check_sloti(i) assert(i >= 0 && i < N_NUMBERS)
 #define check_marki(i) assert(i >= 0 && i < N_NUM_MARKS)
 #else

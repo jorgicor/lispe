@@ -44,7 +44,7 @@ enum { NSYM_MARKS = (NSYMBOLS / 32) + ((NSYMBOLS % 32) ? 1 : 0) };
 
 static unsigned int s_sym_marks[NSYM_MARKS];
 
-#ifdef RANGE_CHECK
+#ifdef PP_RANGECHECKS
 #define check_sloti(i) assert(i >= 0 && i < NSYMBOLS)
 #define check_marki(i) assert(i >= 0 && i < NSYM_MARKS)
 #else

@@ -9,7 +9,7 @@
 
 struct cell s_cells[NCELL];
 
-#ifdef RANGE_CHECK
+#ifdef PP_RANGECHECKS
 static void check_celli(int celli)
 {
 	assert(celli >= 0 && celli < NCELL);

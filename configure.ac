@@ -9,6 +9,13 @@ AC_INIT([lispe],
 
 AC_CONFIG_MACRO_DIR([m4])
 
+AH_TEMPLATE([PP_RANGECHECKS],
+	    [Generate code to check the range on array indices])
+AC_ARG_ENABLE(rangechecks,
+	      AS_HELP_STRING([--enable-rangechecks],
+		     [check the range on array indices @<:@default=yes@:>@]),
+		     [], [enable_rangechecks=yes])
+
 AC_CONFIG_AUX_DIR(config)
 AM_INIT_AUTOMAKE(-Wall -Werror -Wportability subdir-objects
 		 color-tests parallel-tests)
@@ -30,6 +37,9 @@ AC_SUBST(WARN_CFLAGS)
 # Checks for header files.
 
 # Checks for typedefs, structures, and compiler characteristics.
+if test "${enable_rangechecks}" = yes; then
+	AC_DEFINE([PP_RANGECHECKS])
+fi
 
 # Checks for library functions.
 
