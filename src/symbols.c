@@ -1,4 +1,5 @@
 #include "cfg.h"
+#include "cbase.h"
 #include "gc.h"
 #include "cbase.h"
 #include <assert.h>
@@ -57,9 +58,9 @@ void mark_symbol(int i)
 	int w;
 
 	// printf("marked %d\n", i);
-	check_sloti(i);
+	chkrange(i, NSYMBOLS);
 	w = i >> 5;
-	check_marki(w);
+	chkrange(w, NSYM_MARKS);
 	i &= 31;
 	s_sym_marks[w] |= (1 << i);
 }
@@ -68,9 +69,9 @@ static int symbol_marked(int i)
 {
 	int w;
 
-	check_sloti(i);
+	chkrange(i, NSYMBOLS);
 	w = i >> 5;
-	check_marki(w);
+	chkrange(w, NSYM_MARKS);
 	i &= 31;
 	return s_sym_marks[w] & (1 << i);
 }

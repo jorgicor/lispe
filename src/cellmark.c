@@ -1,4 +1,5 @@
 #include "cfg.h"
+#include "cbase.h"
 #include "cellmark.h"
 #include <assert.h>
 #include <stdio.h>
@@ -8,21 +9,13 @@ enum { NCELLMARK = (NCELL / 32) + ((NCELL % 32) ? 1 : 0) };
 /* We use 1 bit for each cell. */
 static unsigned int s_cellmarks[NCELLMARK];
 
-#ifdef PP_RANGECHECKS
-#define check_celli(i) assert(i >= 0 && i < NCELL)
-#define check_marki(i) assert(i >= 0 && i < NCELLMARK)
-#else
-#define check_celli(i)
-#define check_marki(i)
-#endif
-
 static void calc_w_i(int celli, int *w, int *i)
 {
 	int wt;
 
-	check_celli(celli);
+	chkrange(celli, NCELL);
 	wt = celli >> 5;
-	check_marki(wt);
+	chkrange(wt, NCELLMARK);
 	celli &= 31;
 	*w = wt;
 	*i = celli;

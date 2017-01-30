@@ -1,4 +1,5 @@
 #include "cfg.h"
+#include "cbase.h"
 #include "numbers.h"
 #include "gc.h"
 #include <assert.h>
@@ -21,14 +22,6 @@ static union number_node s_free_nodes;
 enum { N_NUM_MARKS = (N_NUMBERS / 32) + ((N_NUMBERS % 32) ? 1 : 0) };
 
 static unsigned int s_num_marks[N_NUM_MARKS];
-
-#ifdef PP_RANGECHECKS
-#define check_sloti(i) assert(i >= 0 && i < N_NUMBERS)
-#define check_marki(i) assert(i >= 0 && i < N_NUM_MARKS)
-#else
-#define check_sloti(i)
-#define check_marki(i)
-#endif
 
 #ifdef DEBUG_NUMBERS
 #define dprintf(...) printf(__VA_ARGS__) 
@@ -65,9 +58,9 @@ void mark_number(int i)
 	int w;
 
 	dprintf("marked %d\n", i);
-	check_sloti(i);
+	chkrange(i, N_NUMBERS);
 	w = i >> 5;
-	check_marki(w);
+	chkrange(w, N_NUM_MARKS);
 	i &= 31;
 	s_num_marks[w] |= (1 << i);
 }
@@ -76,9 +69,9 @@ static int number_marked(int i)
 {
 	int w;
 
-	check_sloti(i);
+	chkrange(i, N_NUMBERS);
 	w = i >> 5;
-	check_marki(w);
+	chkrange(w, N_NUM_MARKS);
 	i &= 31;
 	return s_num_marks[w] & (1 << i);
 }
@@ -107,7 +100,7 @@ void gc_numbers(void)
 
 float get_number(int i)
 {
-	check_sloti(i);
+	chkrange(i, N_NUMBERS);
 	return s_numbers[i].number;
 }
 
