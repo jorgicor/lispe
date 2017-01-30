@@ -223,14 +223,7 @@ static SEXPR quote(SEXPR e, SEXPR a)
 
 static SEXPR cond(SEXPR e, SEXPR a)
 {
-	// return p_evcon(e, a);
-	for (;;) {
-		if (p_eq(p_eval(p_car(p_car(c)), a), s_true_atom)) {
-			return p_car(p_cdr(p_car(c)));
-		} else {
-			c = p_cdr(c);
-		}
-	}
+	return p_evcon(e, a);
 }
 
 /* TODO: make builtin function so the arguments eval automatically? */
