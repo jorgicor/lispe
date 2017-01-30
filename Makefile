@@ -25,3 +25,6 @@ cells.c pred.c gcbase.c lispe.c: cells.h
 
 clean:
 	rm -f $(OBJS)
+
+archive:
+	git archive -o lispe.tar.gz master
