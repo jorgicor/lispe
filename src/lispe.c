@@ -90,13 +90,13 @@ static struct builtin builtin_functions[] = {
 	{ "*", &times, 0 },
 	{ "quit", &quit, 0 },
 	{ "/", &quotient, 0 },
+	{ "eval", &eval, 1 },	/* TODO: should be tailrec? should be func? */
 	/* modulo and remainder */
 };
 
 static struct builtin builtin_specials[] = {
 	{ "body", &body, 0 },
 	{ "cond", &cond, 1 },
-	{ "eval", &eval, 0 },	/* TODO: should be tailrec? should be func? */
 	{ "lambda", &lambda, 0 },
 	{ "dyn-lambda", &dyn_lambda, 0 },
 	{ "list", &list, 0 },
@@ -148,6 +148,12 @@ SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
 {
 	chkrange(i, NELEMS(builtin_specials));
 	return apply_builtin(&builtin_specials[i], args, a);
+}
+
+int builtin_function_tailrec(int i)
+{
+	chkrange(i, NELEMS(builtin_functions));
+	return builtin_functions[i].tailrec;
 }
 
 int builtin_special_tailrec(int i)
@@ -233,6 +239,7 @@ static SEXPR cond(SEXPR e, SEXPR a)
 	// return p_evcon(e, a);
 	for (;;) {
 		if (p_eq(p_eval(p_car(p_car(e)), a), s_true_atom)) {
+			p_println(p_car(p_cdr(p_car(e))));
 			return p_car(p_cdr(p_car(e)));
 		} else {
 			e = p_cdr(e);
@@ -474,13 +481,16 @@ static SEXPR eq(SEXPR e, SEXPR a)
 
 static SEXPR special(SEXPR e, SEXPR a)
 {
+	/* e is parameters and body */
 	return make_special(sexpr_index(e));
 	// return make_special(sexpr_index(p_cons(e, a)));
 }
 
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
-	/* e is the arguments and body */
+	/* e is parameter list and body */
+	printf("made lambda with env ");
+	p_println(a);
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 
@@ -523,9 +533,9 @@ static SEXPR equal(SEXPR e, SEXPR a)
 
 static SEXPR eval(SEXPR e, SEXPR a)
 {
-	e = p_eval(p_car(e), a);
-	e = p_eval(e, a);
-	return e;
+	// e = p_eval(p_car(e), a);
+	// return e;
+	return p_car(e);
 }
 
 static SEXPR gc(SEXPR e, SEXPR a)

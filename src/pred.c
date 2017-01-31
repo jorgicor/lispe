@@ -227,7 +227,7 @@ SEXPR p_evcon(SEXPR c, SEXPR a)
  */
 static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 {
-	SEXPR e1, r;
+	SEXPR e1, r, anew;
 	int celli;
 
 #if 0
@@ -248,8 +248,12 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 	push3(x, fn, a);
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
+		*tailrec = builtin_function_tailrec(sexpr_index(fn));
 		r = apply_builtin_function(sexpr_index(fn), x, a);
 		popn(3);
+		if (*tailrec) {
+			*a2 = a;
+		}
 		break;
 	case SEXPR_BUILTIN_SPECIAL:
 		*tailrec = builtin_special_tailrec(sexpr_index(fn));
@@ -267,10 +271,11 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		celli = sexpr_index(fn);
 		fn = cell_car(celli);
 		a = cell_cdr(celli);
+		printf("a2: ");
+		p_println(a);
 		push2(fn, a);
 		/* fall */
 	case SEXPR_DYN_FUNCTION:
-	case SEXPR_SPECIAL:
 		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and append 'a. */
 		a = p_pairargs(cell_car(celli), x, a);
@@ -298,6 +303,22 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 				*a2 = a;
 			}
 		}
+		break;
+	case SEXPR_SPECIAL:
+		celli = sexpr_index(fn);
+		/* pair parameters with their arguments and append 'a. */
+		anew = p_pairargs(cell_car(celli), x, a);
+		/* eval sequence */
+		e1 = cell_cdr(celli);
+		while (!p_null(e1)) {
+			r = p_eval(p_car(e1), anew);
+			e1 = p_cdr(e1);
+		}
+		popn(3);
+		/* The returned expression must be evaluated in the previous
+		 * environment. */
+		*tailrec = 1;
+		*a2 = a;
 		break;
 	default:
 		throw_err();
@@ -440,7 +461,7 @@ void p_print(SEXPR sexpr)
 			builtin_special_name(sexpr_index(sexpr)));
 		break;
 	case SEXPR_FUNCTION:
-		printf("{function}");
+		printf("{lambda}");
 #if 0
 		printf("(lambda ");
 		p_print(cell_car(sexpr_index(sexpr)));
@@ -450,6 +471,9 @@ void p_print(SEXPR sexpr)
 		break;
 	case SEXPR_SPECIAL:
 		printf("{special}");
+		break;
+	case SEXPR_DYN_FUNCTION:
+		printf("{d-lambda}");
 		break;
 	}
 }

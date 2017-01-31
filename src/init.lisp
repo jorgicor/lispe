@@ -50,8 +50,7 @@
 (setq append (lambda (p q)
     (cond ((null p)
 	   	(cond ((null q) nil)
-		       (t (cons (car q) (append p (cdr q)))))
-           )
+		       (t (cons (car q) (append p (cdr q))))))
 	   (t (cons (car p) (append (cdr p) q))))))
 
 (setq let (special (varlist &rest)
@@ -150,10 +149,15 @@
        (sqrt-iter 1)) nil nil nil nil nil nil)))
 
 (setq define (special (a &rest)
-      (eval
-          (cond ((symbolp a) (list 'setq a (car &rest)))
-	        (t (list 'setq (car a)
-			 (cons 'lambda (cons (cdr a) &rest))))))))
+      (cond ((symbolp a) (list 'setq a (car &rest)))
+		(t (list 'setq (car a)
+			(cons 'lambda (cons (cdr a) &rest)))))))
+
+(setq cons3 (lambda (x y)
+     (lambda (m)
+	    (cond ((eq m 0) x)
+		  ((eq m 1) y)
+		  (t 'error)))))
 
 (define (cons2 x y)
   (let ((dispatch nil))
