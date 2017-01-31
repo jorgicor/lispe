@@ -36,7 +36,7 @@ static SEXPR cond(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
-static SEXPR dyn_lambda(SEXPR e, SEXPR a);
+static SEXPR dynfn(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
@@ -98,7 +98,7 @@ static struct builtin builtin_specials[] = {
 	{ "body", &body, 0 },
 	{ "cond", &cond, 1 },
 	{ "lambda", &lambda, 0 },
-	{ "dyn-lambda", &dyn_lambda, 0 },
+	{ "dynfn", &dynfn, 0 },
 	{ "list", &list, 0 },
 	{ "quote", &quote, 0 },
 	{ "setq", &setq, 0 },
@@ -485,7 +485,7 @@ static SEXPR lambda(SEXPR e, SEXPR a)
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 
-static SEXPR dyn_lambda(SEXPR e, SEXPR a)
+static SEXPR dynfn(SEXPR e, SEXPR a)
 {
 	return make_dyn_function(sexpr_index(e));
 }

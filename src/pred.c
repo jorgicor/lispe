@@ -217,6 +217,38 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 			*env2 = env;
 		}
 		break;
+	case SEXPR_DYN_FUNCTION:
+		celli = sexpr_index(fn);
+		/* make a new environment with the current one as parent */
+		env = push(make_environment(env));
+		/* pair parameters with their arguments and extend the
+		 * current environment. */
+		extend_environment(env, cell_car(celli), x);
+		/* eval sequence except the last expression */
+		e1 = cell_cdr(celli);
+		while (!p_null(e1)) {
+			/* last expr */
+			if (p_null(p_cdr(e1))) {
+				break;
+			}
+			r = p_eval(p_car(e1), env);
+			e1 = p_cdr(e1);
+		}
+		if (!p_null(e1)) {
+			r = p_car(e1);
+		} else {
+			r = SEXPR_NIL;
+		}
+		popn(4);
+		if (!p_null(r)) {
+			if (tailrec == NULL) {
+				r = p_eval(r, env);
+			} else {
+				*tailrec = 1;
+				*env2 = env;
+			}
+		}
+		break;
 	case SEXPR_FUNCTION:
 		/* a function (lambda) creates a new environment with
 		 * its saved environment as parent.
@@ -225,12 +257,12 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		fn = cell_car(celli);
 		env = make_environment(cell_cdr(celli));
 		push2(fn, env);
-		printf("new env: ");
-		p_println_env(env);
 		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and extend the
 		 * environment. */
 		extend_environment(env, cell_car(celli), x);
+		printf("new env: ");
+		p_println_env(env);
 		/* eval sequence except the last expression */
 		e1 = cell_cdr(celli);
 		while (!p_null(e1)) {

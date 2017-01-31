@@ -1,26 +1,44 @@
 #include "cfg.h"
 #include "sexpr.h"
 #include "common.h"
-
-#include <stdio.h>
+#include <assert.h>
 
 SEXPR make_environment(SEXPR parent)
 {
 	return p_cons(parent, SEXPR_NIL);
 }
 
-SEXPR lookup_variable(SEXPR var, SEXPR env)
+/* Looks up a variable only in the environment env (not parents).
+ * Returns the cons(variable, value).
+ */
+static SEXPR lookup_local_variable(SEXPR var, SEXPR env)
 {
 	SEXPR link, bind;
 
+	assert(!p_null(env));
+	link = p_cdr(env);
+	while (!p_null(link)) {
+		bind = p_car(link);
+		if (p_eq(var, p_car(bind))) {
+			return bind;
+		}
+		link = p_cdr(link);
+	}
+
+	return SEXPR_NIL;
+}
+
+/* Looks up a variable in this environment and parents.
+ * Returns the cons(variable, value).
+ */
+SEXPR lookup_variable(SEXPR var, SEXPR env)
+{
+	SEXPR bind;
+
 	while (!p_null(env)) {
-		link = p_cdr(env);
-		while (!p_null(link)) {
-			bind = p_car(link);
-			if (p_eq(var, p_car(bind))) {
-				return bind;
-			}
-			link = p_cdr(link);
+		bind = lookup_local_variable(var, env);
+		if (!p_null(bind)) {
+			return bind;
 		}
 		env = p_car(env);
 	}
@@ -28,11 +46,13 @@ SEXPR lookup_variable(SEXPR var, SEXPR env)
 	return SEXPR_NIL;
 }
 
+
+/* Sets a varable (created if needed) in the environment env. */
 SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env)
 {
 	SEXPR bind, link;
 
-	bind = lookup_variable(var, env);
+	bind = lookup_local_variable(var, env);
 	if (p_null(bind)) {
 		push3(var, val, env);
 		bind = p_cons(var, val);
