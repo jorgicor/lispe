@@ -34,7 +34,6 @@ SEXPR s_true_atom;
 SEXPR s_quote_atom;
 SEXPR s_rest_atom;
 
-
 /* Makes an sexpr form two sexprs. */
 SEXPR p_cons(SEXPR first, SEXPR rest)
 {
@@ -209,16 +208,16 @@ static void install_symbols(void)
 	SEXPR e;
 
 	e = make_symbol("nil", 3);
-	s_env = p_add(e, SEXPR_NIL, s_env);
+	define_variable(e, SEXPR_NIL, s_env);
 
 	s_true_atom = make_symbol("t", 1);
-	s_env = p_add(s_true_atom, s_true_atom, s_env);
+	define_variable(s_true_atom, s_true_atom, s_env);
 
 	s_quote_atom = make_symbol("quote", 5);
-	s_hidenv = p_add(s_quote_atom, s_quote_atom, s_hidenv);
+	define_variable(s_quote_atom, s_quote_atom, s_hidenv);
 
 	s_rest_atom = make_symbol("&rest", 5);
-	s_hidenv = p_add(s_rest_atom, s_rest_atom, s_hidenv);
+	define_variable(s_rest_atom, s_rest_atom, s_hidenv);
 }
 
 /* Init this module, in particular the SEXPR_NIL atom and the free list of cells.
@@ -238,8 +237,8 @@ void gcbase_init(void)
 	}
 	s_free_cells = make_cons(0);
 
-	s_env = SEXPR_NIL;
-	s_hidenv = SEXPR_NIL;
+	s_env = make_environment(SEXPR_NIL);
+	s_hidenv = make_environment(SEXPR_NIL);
 	s_stack = SEXPR_NIL;
 	s_cons_car = SEXPR_NIL;
 	s_cons_cdr = SEXPR_NIL;

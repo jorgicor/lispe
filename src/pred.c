@@ -9,13 +9,15 @@
 #include <stdio.h>
 #endif
 
+void p_println_env(SEXPR env);
+
 /*
  * In lispe.c we have the functions called from the interpreter, for example
  * atom(). These in turn call these in this file, for example p_atom().
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 0;
+static int s_debug = 1;
 
 int p_null(SEXPR e)
 {
@@ -219,15 +221,15 @@ SEXPR p_evcon(SEXPR c, SEXPR a)
  * expression in the function to apply will be returned unevaluated.
  * In that case, *tailrec will be set to 1 or 0.
  * If 1, it means that the SEXPR returned is the last expression of a
- * sequence and has not been evaluated. Eval can evaluate it and 'a2
+ * sequence and has not been evaluated. Eval can evaluate it and 'env2
  * will be the environment in which to evaluate.
  * This is to implement tail recursion, until a better idea.
  * If 0, the return value is already the final one, eval does not need to
  * evaluate anything.
  */
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
+static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 {
-	SEXPR e1, r;
+	SEXPR e1, r, env_new;
 	int celli;
 
 #if 0
@@ -241,35 +243,42 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 
 	r = SEXPR_NIL;
 	if (tailrec) {
-		assert(a2);
+		assert(env2);
 		*tailrec = 0;
 	}
 
-	push3(x, fn, a);
+	push3(x, fn, env);
 	switch (sexpr_type(fn)) {
 	case SEXPR_BUILTIN_FUNCTION:
-		r = apply_builtin_function(sexpr_index(fn), x, a);
+		*tailrec = builtin_function_tailrec(sexpr_index(fn));
+		r = apply_builtin_function(sexpr_index(fn), x, env);
 		popn(3);
+		if (*tailrec) {
+			*env2 = env;
+		}
 		break;
 	case SEXPR_BUILTIN_SPECIAL:
-		r = apply_builtin_special(sexpr_index(fn), x, a);
+		*tailrec = builtin_special_tailrec(sexpr_index(fn));
+		r = apply_builtin_special(sexpr_index(fn), x, env);
 		popn(3);
+		if (*tailrec) {
+			*env2 = env;
+		}
 		break;
 	case SEXPR_FUNCTION:
-		/* a function (lambda) overrides the environment
-		 * with its saved environment.
+		/* a function (lambda) creates a new environment with
+		 * its saved environment as parent.
 		 */
-		popn(2);
 		celli = sexpr_index(fn);
 		fn = cell_car(celli);
-		a = cell_cdr(celli);
-		push2(fn, a);
-		/* fall */
-	case SEXPR_DYN_FUNCTION:
-	case SEXPR_SPECIAL:
+		env = make_environment(cell_cdr(celli));
+		push2(fn, env);
+		printf("new env: ");
+		p_println_env(env);
 		celli = sexpr_index(fn);
-		/* pair parameters with their arguments and append 'a. */
-		a = p_pairargs(cell_car(celli), x, a);
+		/* pair parameters with their arguments and extend the
+		 * environment. */
+		extend_environment(env, cell_car(celli), x);
 		/* eval sequence except the last expression */
 		e1 = cell_cdr(celli);
 		while (!p_null(e1)) {
@@ -277,7 +286,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 			if (p_null(p_cdr(e1))) {
 				break;
 			}
-			r = p_eval(p_car(e1), a);
+			r = p_eval(p_car(e1), env);
 			e1 = p_cdr(e1);
 		}
 		if (!p_null(e1)) {
@@ -285,15 +294,40 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR a, int *tailrec, SEXPR *a2)
 		} else {
 			r = SEXPR_NIL;
 		}
-		popn(3);
+		popn(5);
 		if (!p_null(r)) {
 			if (tailrec == NULL) {
-				r = p_eval(r, a);
+				r = p_eval(r, env);
 			} else {
 				*tailrec = 1;
-				*a2 = a;
+				*env2 = env;
 			}
 		}
+		break;
+	case SEXPR_SPECIAL:
+		celli = sexpr_index(fn);
+		fn = cell_car(celli);
+		env_new = make_environment(cell_cdr(celli));
+		push2(fn, env_new);
+		printf("new env: ");
+		p_println_env(env_new);
+		celli = sexpr_index(fn);
+		/* pair parameters with their arguments and append 'a. */
+		extend_environment(env_new, cell_car(celli), x);
+		/* eval sequence */
+		e1 = cell_cdr(celli);
+		while (!p_null(e1)) {
+			r = p_eval(p_car(e1), env_new);
+			e1 = p_cdr(e1);
+		}
+		popn(5);
+		/* The returned expression must be evaluated in the previous
+		 * environment. */
+		*tailrec = 1;
+		*env2 = env;
+		printf("return expression to environment:\n");
+		p_println(r); 
+		p_println_env(env);
 		break;
 	default:
 		throw_err();
@@ -319,27 +353,29 @@ static int listlen(SEXPR e)
 	return n;
 }
 
-SEXPR p_eval(SEXPR e, SEXPR a)
+SEXPR p_eval(SEXPR e, SEXPR env)
 {
 	int tailrec, t;
-	SEXPR c, e1, a2;
+	SEXPR c, e1, env2;
 
 	s_evalc++;
-#if 0
+#if 1
 	printf("eval stack %d\n", s_evalc);
-	p_println(s_stack);
+	// p_println(a);
 #endif
 
 again:  switch (sexpr_type(e)) {
 	case SEXPR_NIL:
 	case SEXPR_NUMBER:
+	case SEXPR_BUILTIN_FUNCTION:
+	case SEXPR_BUILTIN_SPECIAL:
+	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
+	case SEXPR_DYN_FUNCTION:
 		s_evalc--;
 		return e;
 	case SEXPR_SYMBOL:
-		c = p_assoc(e, a);
-		if (p_null(c)) {
-			c = p_assoc(e, s_env);
-		}
+		c = lookup_variable(e, env);
 		if (p_null(c)) {
 			throw_err(); /* unbound symbol */
 		}
@@ -350,30 +386,30 @@ again:  switch (sexpr_type(e)) {
 		if (s_debug) {
 			printf("eval: ");
 			p_println(e);
-			printf("a: ");
-			p_println(a);
+			printf("env: ");
+			p_println_env(env);
 		}
 		/* evaluate the operator */
-		push2(a, e);
-		c = p_eval(p_car(e), a);
+		push2(env, e);
+		c = p_eval(p_car(e), env);
 		t = sexpr_type(c);
 		switch (t) {
 		case SEXPR_BUILTIN_SPECIAL:
 		case SEXPR_SPECIAL:
 			/* special forms evaluate the arguments themselves */
 			popn(2);
-			c = p_apply(c, p_cdr(e), a, &tailrec, &a2);
+			c = p_apply(c, p_cdr(e), env, &tailrec, &env2);
 			break;
 		default:
 			/* evaluate the arguments */
 			push(c);
-			e1 = p_evlis(p_cdr(e), a);
+			e1 = p_evlis(p_cdr(e), env);
 			popn(3);
-			c = p_apply(c, e1, a, &tailrec, &a2);
+			c = p_apply(c, e1, env, &tailrec, &env2);
 		}
 		if (tailrec) {
 			e = c;
-			a = a2;
+			env = env2;
 			goto again;
 		}
 		if(s_debug) {
@@ -431,7 +467,7 @@ void p_print(SEXPR sexpr)
 			builtin_special_name(sexpr_index(sexpr)));
 		break;
 	case SEXPR_FUNCTION:
-		printf("{function}");
+		printf("{lambda}");
 #if 0
 		printf("(lambda ");
 		p_print(cell_car(sexpr_index(sexpr)));
@@ -442,7 +478,26 @@ void p_print(SEXPR sexpr)
 	case SEXPR_SPECIAL:
 		printf("{special}");
 		break;
+	case SEXPR_DYN_FUNCTION:
+		printf("{d-lambda}");
+		break;
 	}
+}
+
+void p_println_env(SEXPR env)
+{
+	int any;
+
+	any = 0;
+	while (!p_null(env)) {
+		if (p_null(p_car(env)))
+			break;
+		any = 1;
+		p_println(p_cdr(env));
+		env = p_car(env);
+	}
+	if (!any)
+		printf("\n");
 }
 
 void p_println(SEXPR sexpr)

@@ -1,5 +1,23 @@
 (setq else t)
 
+(setq caar (lambda (p) (car (car p))))
+(setq cadr (lambda (p) (car (cdr p))))
+(setq cdar (lambda (p) (cdr (car p))))
+(setq cddr (lambda (p) (cdr (cdr p))))
+
+(setq define (special (a &rest)
+    (cond ((symbolp a) (list 'setq a (car &rest)))
+           (t (list 'setq (car a)
+                    (cons 'lambda (cons (cdr a) &rest)))))))
+
+(setq map (lambda (fn p)
+    (cond ((null p) nil)
+           (t (cons (fn (car p)) (map fn (cdr p)))))))
+
+(setq let (special (varlist &rest)
+    (cons (cons 'lambda (cons (map car varlist) &rest))
+	  (map cadr varlist))))
+
 (setq listp (lambda (p)
     (cond ((null p) t)
 	  ((consp p) t)
@@ -19,18 +37,9 @@
 (setq begin (special (&rest)
       (eval (cons (cons 'lambda (cons nil &rest)) nil))))
 
-(setq map (lambda (fn p)
-    (cond ((null p) nil)
-	  (t (cons (fn (car p)) (map fn (cdr p)))))))
-
 (setq if (special (a b c)
     (cond ((eval a) (eval b))
 	  (t (eval c)))))
-
-(setq caar (lambda (p) (car (car p))))
-(setq cadr (lambda (p) (car (cdr p))))
-(setq cdar (lambda (p) (cdr (car p))))
-(setq cddr (lambda (p) (cdr (cdr p))))
 
 (setq last (lambda (p)
     (cond ((null p) nil)
@@ -50,14 +59,8 @@
 (setq append (lambda (p q)
     (cond ((null p)
 	   	(cond ((null q) nil)
-		       (t (cons (car q) (append p (cdr q)))))
-           )
+		       (t (cons (car q) (append p (cdr q))))))
 	   (t (cons (car p) (append (cdr p) q))))))
-
-(setq let (special (varlist &rest)
-    (eval (cons
-	    (cons 'lambda (cons (map car varlist) &rest))
-	    (map cadr varlist)))))
 
 (setq unev-let (special (varlist &rest)
     (cons
@@ -149,11 +152,12 @@
 			       (t (sqrt-iter (improve guess))))))
        (sqrt-iter 1)) nil nil nil nil nil nil)))
 
-(setq define (special (a &rest)
-      (eval
-          (cond ((symbolp a) (list 'setq a (car &rest)))
-	        (t (list 'setq (car a)
-			 (cons 'lambda (cons (cdr a) &rest))))))))
+
+(setq cons3 (lambda (x y)
+     (lambda (m)
+	    (cond ((eq m 0) x)
+		  ((eq m 1) y)
+		  (t 'error)))))
 
 (define (cons2 x y)
   (let ((dispatch nil))

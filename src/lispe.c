@@ -65,43 +65,44 @@ void throw_err(void)
 struct builtin {
 	const char* id;
 	SEXPR (*fun)(SEXPR, SEXPR);
+	int tailrec;
 };
 
 static struct builtin builtin_functions[] = {
-	{ "atom", &atom },
-	{ "assoc", &assoc },
-	{ "car",  &car },
-	{ "cdr", &cdr },
-	{ "cons", &cons },
-	{ "consp", &consp },
-	{ "-", &difference},
-	{ "eq", &eq },
-	{ "equal", &equal },
-	{ ">", &greaterp },
-	{ "gc", &gc },
-	{ "<", &lessp },
-	{ "null", &null },
-	{ "numberp", &numberp },
-	{ "+", &plus },
-	{ "setcar", &setcar },
-	{ "setcdr", &setcdr },
-	{ "symbolp", &symbolp },
-	{ "*", &times },
-	{ "quit", &quit },
-	{ "/", &quotient },
+	{ "atom", &atom, 0 },
+	{ "assoc", &assoc, 0 },
+	{ "car",  &car, 0 },
+	{ "cdr", &cdr, 0 },
+	{ "cons", &cons, 0 },
+	{ "consp", &consp, 0 },
+	{ "-", &difference, 0 },
+	{ "eq", &eq, 0 },
+	{ "equal", &equal, 0 },
+	{ ">", &greaterp, 0 },
+	{ "gc", &gc, 0 },
+	{ "<", &lessp, 0 },
+	{ "null", &null, 0 },
+	{ "numberp", &numberp, 0 },
+	{ "+", &plus, 0 },
+	{ "setcar", &setcar, 0 },
+	{ "setcdr", &setcdr, 0 },
+	{ "symbolp", &symbolp, 0 },
+	{ "*", &times, 0 },
+	{ "quit", &quit, 0 },
+	{ "/", &quotient, 0 },
+	{ "eval", &eval, 1 },	/* TODO: should be tailrec? should be func? */
 	/* modulo and remainder */
 };
 
 static struct builtin builtin_specials[] = {
-	{ "body", &body },
-	{ "cond", &cond },
-	{ "eval", &eval },
-	{ "lambda", &lambda },
-	{ "dyn-lambda", &dyn_lambda },
-	{ "list", &list },
-	{ "quote", &quote },
-	{ "setq", &setq },
-	{ "special", &special },
+	{ "body", &body, 0 },
+	{ "cond", &cond, 1 },
+	{ "lambda", &lambda, 0 },
+	{ "dyn-lambda", &dyn_lambda, 0 },
+	{ "list", &list, 0 },
+	{ "quote", &quote, 0 },
+	{ "setq", &setq, 0 },
+	{ "special", &special, 0 },
 };
 
 static void install_builtin(const char *name, SEXPR e)
@@ -109,7 +110,7 @@ static void install_builtin(const char *name, SEXPR e)
 	SEXPR var;
 
 	var = make_symbol(name, strlen(name));
-	s_env = p_add(var, e, s_env);
+	define_variable(var, e, s_env);
 }
 
 static void install_builtin_functions(void)
@@ -139,14 +140,26 @@ static SEXPR apply_builtin(struct builtin *pbin, SEXPR args, SEXPR a)
 
 SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a)
 {
-	assert(i >= 0 && i < NELEMS(builtin_functions));
+	chkrange(i, NELEMS(builtin_functions));
 	return apply_builtin(&builtin_functions[i], args, a);
 }
 
 SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a)
 {
-	assert(i >= 0 && i < NELEMS(builtin_specials));
+	chkrange(i, NELEMS(builtin_specials));
 	return apply_builtin(&builtin_specials[i], args, a);
+}
+
+int builtin_function_tailrec(int i)
+{
+	chkrange(i, NELEMS(builtin_functions));
+	return builtin_functions[i].tailrec;
+}
+
+int builtin_special_tailrec(int i)
+{
+	chkrange(i, NELEMS(builtin_specials));
+	return builtin_specials[i].tailrec;
 }
 
 static const char *builtin_name(struct builtin *pbin)
@@ -191,7 +204,7 @@ static void load_init_file(void)
 	do {
 		sexpr = get_sexpr(parse(&t, &p), &errorc);
 		if (errorc == ERRORC_OK) {
-			p_eval(sexpr, SEXPR_NIL); 
+			p_eval(sexpr, s_env); 
 		}
 	} while (errorc == ERRORC_OK);
 
@@ -223,7 +236,14 @@ static SEXPR quote(SEXPR e, SEXPR a)
 
 static SEXPR cond(SEXPR e, SEXPR a)
 {
-	return p_evcon(e, a);
+	for (;;) {
+		if (p_eq(p_eval(p_car(p_car(e)), a), s_true_atom)) {
+			p_println(p_car(p_cdr(p_car(e))));
+			return p_car(p_cdr(p_car(e)));
+		} else {
+			e = p_cdr(e);
+		}
+	}
 }
 
 /* TODO: make builtin function so the arguments eval automatically? */
@@ -246,30 +266,22 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 {
 	SEXPR var;
 	SEXPR val;
-	SEXPR bind;
 
 	val = SEXPR_NIL;
+	push3(sexpr, a, val);
 	while (!p_null(sexpr)) {
 		var = p_car(sexpr);
 		if (!p_symbolp(var))
 			throw_err();
 
 		sexpr = p_cdr(sexpr);
+		pop();
 		val = p_eval(p_car(sexpr), a);
-		bind = p_assoc(var, a);
-		if (p_null(bind)) {
-			bind = p_assoc(var, s_env);
-			if (p_null(bind)) {
-				bind = p_cons(var, val);
-				s_env = p_cons(bind, s_env);
-			} else {
-				p_setcdr(bind, val);
-			}
-		} else {
-			p_setcdr(bind, val);
-		}
+		push(val);
+		define_variable(var, val, a);
 		sexpr = p_cdr(sexpr);
 	}
+	popn(3);
 
 	return val;
 }
@@ -460,13 +472,16 @@ static SEXPR eq(SEXPR e, SEXPR a)
 
 static SEXPR special(SEXPR e, SEXPR a)
 {
-	return make_special(sexpr_index(e));
-	// return make_special(sexpr_index(p_cons(e, a)));
+	/* e is parameters and body */
+	// return make_special(sexpr_index(e));
+	return make_special(sexpr_index(p_cons(e, a)));
 }
 
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
-	/* e is the arguments and body */
+	/* e is parameter list and body */
+	printf("made lambda with env: ");
+	p_println_env(a);
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 
@@ -485,9 +500,9 @@ static SEXPR body(SEXPR e, SEXPR a)
 	e = p_car(e);
 	switch (sexpr_type(e)) {
 	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
 		return cell_car(sexpr_index(e));
 	case SEXPR_DYN_FUNCTION:
-	case SEXPR_SPECIAL:
 		celli = sexpr_index(e);
 		return p_cons(cell_car(celli), cell_cdr(celli));
 	case SEXPR_BUILTIN_FUNCTION:
@@ -509,9 +524,9 @@ static SEXPR equal(SEXPR e, SEXPR a)
 
 static SEXPR eval(SEXPR e, SEXPR a)
 {
-	e = p_eval(p_car(e), a);
-	e = p_eval(e, a);
-	return e;
+	// e = p_eval(p_car(e), a);
+	// return e;
+	return p_car(e);
 }
 
 static SEXPR gc(SEXPR e, SEXPR a)
@@ -548,7 +563,7 @@ int main(int argc, char* argv[])
 			} else if (errorc == ERRORC_SYNTAX) {
 				printf("lispe: syntax error\n");
 			} else {
-				p_println(p_eval(e, SEXPR_NIL));
+				p_println(p_eval(e, s_env));
 			}
 		} else {
 			printf("lispe: ** error **\n");

@@ -8,4 +8,4 @@ lispe_SOURCES = lispe.c cfg.h cbase.h gc.h common.h \
 		numbers.c numbers.h \
 		symbols.c symbols.h \
 		sexpr.c sexpr.h \
-		gcbase.c parse.c pred.c
+		gcbase.c parse.c pred.c env.c
