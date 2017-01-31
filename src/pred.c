@@ -135,54 +135,6 @@ SEXPR p_assoc(SEXPR x, SEXPR a)
 	}
 }
 
-/* Given two lists, 'x and 'y, returns a list with pairs of each list, i.e.:
- * (A B) (C D) -> ((A C) (B D))
- * and adds it to the start of the list 'a.
- * The list 'x must contain symbols.
- * The list 'x can be shorter than 'y; in that case, if the last element of 'x
- * is the symbol &rest, it will be paired with a list containing the remaining
- * elements of 'y.
- */
-static SEXPR p_pairargs(SEXPR x, SEXPR y, SEXPR a)
-{
-	SEXPR head, node, node2;
-
-	if (p_null(x))
-		return a;
-
-	push3(x, y, a);
-
-	/* Handle the case of only one parameter called &rest */
-	if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-		node = p_cons(p_cons(p_car(x), y), SEXPR_NIL);
-		p_setcdr(node, a);
-		popn(3);
-		return node;
-	}
-
-	head = push(p_cons(p_cons(p_car(x), p_car(y)), SEXPR_NIL));
-	node = head;
-	x = p_cdr(x);
-	y = p_cdr(y);
-	while (!p_null(x)) {
-		if (p_null(p_cdr(x)) && p_eq(p_car(x), s_rest_atom)) {
-			node2 = p_cons(p_cons(p_car(x), y), SEXPR_NIL);
-			p_setcdr(node, node2);
-			node = node2;
-		} else {
-			node2 = p_cons(p_cons(p_car(x), p_car(y)), SEXPR_NIL);
-			p_setcdr(node, node2);
-			node = node2;
-			y = p_cdr(y);
-		}
-		x = p_cdr(x);
-	}
-	p_setcdr(node, a);
-	popn(4);
-
-	return head;
-}
-
 /* eval each list member.  */
 SEXPR p_evlis(SEXPR m, SEXPR a)
 {
