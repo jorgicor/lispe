@@ -22,6 +22,7 @@ SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
 
 void p_print(SEXPR sexpr);
 void p_println(SEXPR sexpr);
+void p_println_env(SEXPR env);
 
 /* gcbase.c */
 
@@ -59,6 +60,13 @@ enum {
 };
 
 SEXPR get_sexpr(struct parser *p, int *errorc);
+
+/* env.c */
+
+SEXPR make_environment(SEXPR parent);
+SEXPR lookup_variable(SEXPR var, SEXPR env);
+SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env);
+void extend_environment(SEXPR env, SEXPR params, SEXPR args);
 
 /* lispe.c */
 

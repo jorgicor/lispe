@@ -110,7 +110,7 @@ static void install_builtin(const char *name, SEXPR e)
 	SEXPR var;
 
 	var = make_symbol(name, strlen(name));
-	s_env = p_add(var, e, s_env);
+	define_variable(var, e, s_env);
 }
 
 static void install_builtin_functions(void)
@@ -204,7 +204,7 @@ static void load_init_file(void)
 	do {
 		sexpr = get_sexpr(parse(&t, &p), &errorc);
 		if (errorc == ERRORC_OK) {
-			p_eval(sexpr, SEXPR_NIL); 
+			p_eval(sexpr, s_env); 
 		}
 	} while (errorc == ERRORC_OK);
 
@@ -267,30 +267,22 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 {
 	SEXPR var;
 	SEXPR val;
-	SEXPR bind;
 
 	val = SEXPR_NIL;
+	push3(sexpr, a, val);
 	while (!p_null(sexpr)) {
 		var = p_car(sexpr);
 		if (!p_symbolp(var))
 			throw_err();
 
 		sexpr = p_cdr(sexpr);
+		pop();
 		val = p_eval(p_car(sexpr), a);
-		bind = p_assoc(var, a);
-		if (p_null(bind)) {
-			bind = p_assoc(var, s_env);
-			if (p_null(bind)) {
-				bind = p_cons(var, val);
-				s_env = p_cons(bind, s_env);
-			} else {
-				p_setcdr(bind, val);
-			}
-		} else {
-			p_setcdr(bind, val);
-		}
+		push(val);
+		define_variable(var, val, a);
 		sexpr = p_cdr(sexpr);
 	}
+	popn(3);
 
 	return val;
 }
@@ -482,15 +474,15 @@ static SEXPR eq(SEXPR e, SEXPR a)
 static SEXPR special(SEXPR e, SEXPR a)
 {
 	/* e is parameters and body */
-	return make_special(sexpr_index(e));
-	// return make_special(sexpr_index(p_cons(e, a)));
+	// return make_special(sexpr_index(e));
+	return make_special(sexpr_index(p_cons(e, a)));
 }
 
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
 	/* e is parameter list and body */
-	printf("made lambda with env ");
-	p_println(a);
+	printf("made lambda with env: ");
+	p_println_env(a);
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 
@@ -509,9 +501,9 @@ static SEXPR body(SEXPR e, SEXPR a)
 	e = p_car(e);
 	switch (sexpr_type(e)) {
 	case SEXPR_FUNCTION:
+	case SEXPR_SPECIAL:
 		return cell_car(sexpr_index(e));
 	case SEXPR_DYN_FUNCTION:
-	case SEXPR_SPECIAL:
 		celli = sexpr_index(e);
 		return p_cons(cell_car(celli), cell_cdr(celli));
 	case SEXPR_BUILTIN_FUNCTION:
@@ -572,7 +564,7 @@ int main(int argc, char* argv[])
 			} else if (errorc == ERRORC_SYNTAX) {
 				printf("lispe: syntax error\n");
 			} else {
-				p_println(p_eval(e, SEXPR_NIL));
+				p_println(p_eval(e, s_env));
 			}
 		} else {
 			printf("lispe: ** error **\n");
