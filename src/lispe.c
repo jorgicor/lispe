@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
+#include <tgmath.h>
 
 static SEXPR pairp(SEXPR e, SEXPR a);
 static SEXPR numberp(SEXPR e, SEXPR a);
@@ -40,6 +41,7 @@ static SEXPR set(SEXPR sexpr, SEXPR a);
 static SEXPR plus(SEXPR e, SEXPR a);
 static SEXPR difference(SEXPR e, SEXPR a);
 static SEXPR times(SEXPR e, SEXPR a);
+static SEXPR divide(SEXPR e, SEXPR a);
 static SEXPR quotient(SEXPR e, SEXPR a);
 static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
@@ -96,12 +98,13 @@ static struct builtin builtin_functions[] = {
 	{ "<=", &less_eqp, 0 },
 	{ "number?", &numberp, 0 },
 	{ "+", &plus, 0 },
+	{ "quotient", &quotient },
 	{ "set-car!", &setcar, 0 },
 	{ "set-cdr!", &setcdr, 0 },
 	{ "symbol?", &symbolp, 0 },
 	{ "*", &times, 0 },
 	{ "quit", &quit, 0 },
-	{ "/", &quotient, 0 },
+	{ "/", &divide, 0 },
 	/* modulo and remainder */
 };
 
@@ -333,38 +336,84 @@ static SEXPR cons(SEXPR e, SEXPR a)
 	return p_cons(p_car(e), p_car(p_cdr(e)));
 }
 
-static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
+/* Checks that there are at least n elements on the list p. */
+static int at_leastn(SEXPR p, int n)
 {
-	e = p_evlis(e, a);
-	while (!p_nullp(e)) {
-		if (!p_numberp(p_car(e))) {
-			throw_err("performing arithmetic on something that"
-				  "is not a number");
-		}
-		n = fun(n, sexpr_number(p_car(e)));
-		e = p_cdr(e);
+	while (n > 0 && p_pairp(p)) {
+		n--;
+		p = p_cdr(p);
 	}
+
+	return n == 0;
+}
+
+/* Check that all the elements of p are numbers.  */
+static int all_numbers(SEXPR p)
+{
+	while (p_pairp(p)) {
+		if (!p_numberp(p_car(p))) {
+			return 0;
+		} else {
+			p = p_cdr(p);
+		}
+	}
+
+	return 1;
+}
+
+static SEXPR arith(SEXPR e, SEXPR a, float n0, float (*fun)(float, float))
+{
+	float n;
+
+	/* count arguments */
+	if (!at_leastn(e, 1)) {
+		throw_err("too few arguments for arithmetic procedure");
+		return SEXPR_FALSE;
+	}
+
+	/* check that they are numbers */
+	if (!all_numbers(e)) {
+		throw_err("bad argument for arithmetic procedure:"
+			  "not a number");
+		return SEXPR_FALSE;
+	}
+
+	/* calculate */
+	n = sexpr_number(p_car(e));
+	e = p_cdr(e);
+	if (!p_pairp(e)) {
+		n = fun(n0, n);
+	} else {
+		while (p_pairp(e)) {
+			n = fun(n, sexpr_number(p_car(e)));
+			e = p_cdr(e);
+		}
+	}
+
 	return make_number(n);
 }
 
+/* used for =, <, >, <=, >= */
 static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 {
 	float n, n2;
 
-	e = p_evlis(e, a);
-	if (p_nullp(e)) {
-	       return SEXPR_TRUE;
+	/* count arguments */
+	if (!at_leastn(e, 2)) {
+		throw_err("too few arguments for logic procedure");
+		return SEXPR_FALSE;
 	}
 
-	if (!p_numberp(p_car(e))) {
-		throw_err("wrong type for logic operation");
+	/* check that they are numbers */
+	if (!all_numbers(e)) {
+		throw_err("bad argument for logic procedure: not a number");
+		return SEXPR_FALSE;
 	}
+
+	/* calculate */
 	n = sexpr_number(p_car(e));
 	e = p_cdr(e);
 	while (!p_nullp(e)) {
-		if (!p_numberp(p_car(e))) {
-			throw_err("wrong type for logic operation");
-		}
 		n2 = sexpr_number(p_car(e));
 		if (!fun(n, n2))
 			return SEXPR_FALSE;
@@ -442,20 +491,7 @@ static float difference_fun(float a, float b)
 
 static SEXPR difference(SEXPR e, SEXPR a) 
 {
-	float n;
-
-	e = p_evlis(e, a);
-	if (p_nullp(e) || !p_numberp(p_car(e)))
-		throw_err("operator - requires at least one argument");
-
-	n = sexpr_number(p_car(e));
-	if (p_nullp(p_cdr(e)))
-		return make_number(-n);
-
-	e = push(p_cdr(e));
-	e = arith(e, a, n, difference_fun);
-	pop();
-	return e;
+	return arith(e, a, 0, difference_fun);
 }
 
 static float times_fun(float a, float b)
@@ -468,27 +504,38 @@ static SEXPR times(SEXPR e, SEXPR a)
 	return arith(e, a, 1, times_fun);
 }
 
-static float quotient_fun(float a, float b)
+static float divide_fun(float a, float b)
 {
 	return a / b;
 }
 
+static SEXPR divide(SEXPR e, SEXPR a)
+{
+	return arith(e, a, 1, divide_fun);
+}
+
 static SEXPR quotient(SEXPR e, SEXPR a)
 {
-	float n;
+	SEXPR e1, e2;
+	float n1, n2;
 
 	e = p_evlis(e, a);
-	if (p_nullp(e) || !p_numberp(p_car(e)))
-		throw_err("not enough arguments for operator /");
+	if (!p_pairp(e))
+	       goto eargs;
+	e1 = p_car(e);
+	if (!p_numberp(e1))
+		goto eargs;
+	e2 = p_car(p_cdr(e));
+	if (!p_numberp(e2))
+		goto eargs;
+	n1 = sexpr_number(e1);
+	n2 = sexpr_number(e2);
+	if (n2 == 0)
+		throw_err("quotient by zero");
+	return make_number(trunc(n1 / n2));
 
-	n = sexpr_number(p_car(e));
-	if (p_nullp(p_cdr(e)))
-		return make_number(1.0f / n);
-
-	e = push(p_cdr(e));
-	e = arith(e, a, n, quotient_fun);
-	pop();
-	return e;
+eargs:	throw_err("wrong arguments for quotient");
+	return SEXPR_NIL;
 }
 
 static SEXPR car(SEXPR e, SEXPR a)

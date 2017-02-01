@@ -23,6 +23,7 @@ AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CC_STDC
 # AM_MISSING_PROG(HELP2MAN, help2man, $missing_dir)
 
 # Supported flags.
@@ -32,9 +33,11 @@ AX_CHECK_COMPILE_FLAG([-Wdeclaration-after-statement],
 	      [], [])
 AC_SUBST(WARN_CFLAGS)
 
-# Checks for libraries.
-
 # Checks for header files.
+AC_CHECK_HEADERS([tgmath.h])
+
+# Checks for libraries.
+AC_SEARCH_LIBS([pow],[m])
 
 # Checks for typedefs, structures, and compiler characteristics.
 if test "${enable_rangechecks}" = yes; then
