@@ -511,8 +511,8 @@ static SEXPR special(SEXPR e, SEXPR a)
 static SEXPR lambda(SEXPR e, SEXPR a)
 {
 	/* e is parameter list and body */
-	printf("made lambda with env: ");
-	p_println_env(a);
+	// printf("made lambda with env: ");
+	// p_println_env(a);
 	return make_function(sexpr_index(p_cons(e, a)));
 }
 

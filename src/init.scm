@@ -1,3 +1,5 @@
+; Library procedures
+
 (define else #t)
 
 (define (null? p)
@@ -66,6 +68,7 @@
 (define (map fn first &rest)
   (define (map-lists fn pp)
     (cond ((null? (car pp)) '())
-	  (else (cons (apply fn (map0 car pp)) (map-lists fn (map0 cdr pp))))))
+	  (else (cons (apply fn (map0 car pp))
+		      (map-lists fn (map0 cdr pp))))))
   (map-lists fn (cons first &rest)))
 

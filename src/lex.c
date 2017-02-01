@@ -66,6 +66,15 @@ again:
 
 	if (c == EOF) {
 		t->tok.type = EOF;
+	} else if (c == ';') {
+		while (c != '\n' && c != EOF) {
+			c = getc_from_channel(t->in);
+		}
+		if (c == EOF) {
+			t->tok.type = EOF;
+		} else {
+			goto again;
+		}
 	} else if (c == '(' || c == ')' || c == '.' || c == '\'') {
 		t->tok.type = c;
 	} else if (c == '#') {

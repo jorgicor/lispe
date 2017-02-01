@@ -17,7 +17,7 @@ void p_println_env(SEXPR env);
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 1;
+static int s_debug = 0;
 
 int p_nullp(SEXPR e)
 {
@@ -252,8 +252,8 @@ SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		/* pair parameters with their arguments and extend the
 		 * environment. */
 		extend_environment(env, cell_car(celli), x);
-		printf("new env: ");
-		p_println_env(env);
+		// printf("new env: ");
+		// p_println_env(env);
 		/* eval sequence except the last expression */
 		e1 = cell_cdr(celli);
 		while (!p_nullp(e1)) {
@@ -284,8 +284,8 @@ SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		fn = cell_car(celli);
 		env_new = make_environment(cell_cdr(celli));
 		push2(fn, env_new);
-		printf("new env: ");
-		p_println_env(env_new);
+		// printf("new env: ");
+		// p_println_env(env_new);
 		celli = sexpr_index(fn);
 		/* pair parameters with their arguments and append 'a. */
 		extend_environment(env_new, cell_car(celli), x);
@@ -300,9 +300,9 @@ SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		 * environment. */
 		*tailrec = 1;
 		*env2 = env;
-		printf("return expression to environment:\n");
-		p_println(r); 
-		p_println_env(env);
+		// printf("return expression to environment:\n");
+		// p_println(r); 
+		// p_println_env(env);
 		break;
 	default:
 		throw_err();
@@ -334,7 +334,7 @@ SEXPR p_eval(SEXPR e, SEXPR env)
 	SEXPR c, e1, env2;
 
 	s_evalc++;
-#if 1
+#if 0
 	printf("eval stack %d\n", s_evalc);
 	// p_println(a);
 #endif
@@ -352,8 +352,8 @@ again:  switch (sexpr_type(e)) {
 		s_evalc--;
 		return e;
 	case SEXPR_SYMBOL:
-		printf("lookup: ");
-		p_println(e);
+		// printf("lookup: ");
+		// p_println(e);
 		c = lookup_variable(e, env);
 		if (p_nullp(c)) {
 			throw_err(); /* unbound symbol */
