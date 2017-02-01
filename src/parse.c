@@ -157,6 +157,14 @@ static SEXPR parse_quote(struct parser *p, int *errorc)
 	return sexpr;
 }
 
+static SEXPR pop_n_ret(struct parser *p, SEXPR e)
+{
+	if (p->sp > 0) {
+		pop_token(p->tokenizer);
+	}
+	return e;
+}
+
 static SEXPR parse_sexpr(struct parser *p, int *errorc)
 {
 	struct token *tok;
@@ -166,19 +174,17 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 	if (tok->type == EOF) {
 		*errorc = ERRORC_EOF;
 		return SEXPR_NIL;
+	} else if (tok->type == T_TRUE) {	
+		return pop_n_ret(p, SEXPR_TRUE);
+	} else if (tok->type == T_FALSE) {	
+		return pop_n_ret(p, SEXPR_FALSE);
 	} else if (tok->type == T_ATOM) {	
 		sexpr = make_symbol(tok->value.atom.name,
-			       	    tok->value.atom.len);
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
+				    tok->value.atom.len);
+		return pop_n_ret(p, sexpr);
 	} else if (tok->type == T_NUMBER) {
 		sexpr = make_number(tok->value.number);
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
+		return pop_n_ret(p, sexpr);
 	} else if (tok->type == '\'') {
 		pop_token(p->tokenizer);
 		return parse_quote(p, errorc);
@@ -194,10 +200,7 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 			goto error;
 		}
 		p->sp--;
-		if (p->sp > 0) {
-			pop_token(p->tokenizer);
-		}
-		return sexpr;
+		return pop_n_ret(p, sexpr);
 	}
 
 error:	if (*errorc != ERRORC_OK)

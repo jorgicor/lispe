@@ -40,13 +40,14 @@ struct tokenizer *tokenize(struct input_channel *ic, struct tokenizer *t)
 
 static int is_id_start(int c)
 {
-	return isalpha(c) || (strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
+	return isalpha(c) ||
+	       	(strchr("!$%&*+-./:<=>?@^_~", c) != NULL);
 }
 
 static int is_id_next(int c)
 {
 	return isdigit(c) || isalpha(c) ||
-	       	(strchr("?!+-*/<=>:$%^&_~@", c) != NULL);
+	       	(strchr("!$%&*+-./:<=>?@^_~", c) != NULL);
 }
 
 struct token *pop_token(struct tokenizer *t)
@@ -67,6 +68,16 @@ again:
 		t->tok.type = EOF;
 	} else if (c == '(' || c == ')' || c == '.' || c == '\'') {
 		t->tok.type = c;
+	} else if (c == '#') {
+		c = getc_from_channel(t->in);
+		if (c == 't') {
+			t->tok.type = T_TRUE;
+		} else if (c =='f') {
+			t->tok.type = T_FALSE;
+		} else {
+			t->tok.type = '#';
+			t->peekc = c;
+		}
 	} else if (is_id_start(c)) {
 		t->tok.type = T_ATOM;
 		i = 0;

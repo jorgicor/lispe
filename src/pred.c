@@ -13,20 +13,20 @@ void p_println_env(SEXPR env);
 
 /*
  * In lispe.c we have the functions called from the interpreter, for example
- * atom(). These in turn call these in this file, for example p_atom().
+ * null(). These in turn call these in this file, for example p_null().
  * All the internal functions start with p_ .
  */
 
 static int s_debug = 1;
 
-int p_null(SEXPR e)
+int p_nullp(SEXPR e)
 {
 	return sexpr_eq(SEXPR_NIL, e);
 }
 
 int p_symbolp(SEXPR e)
 {
-	return p_null(e) || sexpr_type(e) == SEXPR_SYMBOL;
+	return sexpr_type(e) == SEXPR_SYMBOL;
 }
 
 int p_numberp(SEXPR e)
@@ -34,22 +34,14 @@ int p_numberp(SEXPR e)
 	return sexpr_type(e) == SEXPR_NUMBER;
 }
 
-int p_atom(SEXPR x)
-{
-	return p_numberp(x) || p_symbolp(x);
-}
-
-int p_consp(SEXPR e)
+int p_pairp(SEXPR e)
 {
 	return sexpr_type(e) == SEXPR_CONS;
 }
 
 SEXPR p_car(SEXPR e)
 {
-	if (p_null(e))
-		return SEXPR_NIL;
-
-	if (!p_consp(e))
+	if (!p_pairp(e))
 		throw_err();
 
 	return cell_car(sexpr_index(e));
@@ -57,10 +49,7 @@ SEXPR p_car(SEXPR e)
 
 SEXPR p_cdr(SEXPR e)
 {
-	if (p_null(e))
-		return SEXPR_NIL;
-
-	if (!p_consp(e))
+	if (!p_pairp(e))
 		throw_err();
 
 	return cell_cdr(sexpr_index(e));
@@ -71,30 +60,32 @@ SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
 	return p_cons(p_cons(var, val), a);
 }
 
-int p_eq(SEXPR x, SEXPR y)
+int p_eqp(SEXPR x, SEXPR y)
 {
-	if (p_null(x) && p_null(y)) {
-		return 1;
-	} else if (p_symbolp(x) && p_symbolp(y)) {
-		return sexpr_eq(x, y);
-	} else if (p_numberp(x) && p_numberp(y)) {
-		return sexpr_number(x) == sexpr_number(y);
-	} else {
-		throw_err();
-		return SEXPR_NIL;
-	}
+	return sexpr_eq(x, y);
 }
 
-int p_equal(SEXPR x, SEXPR y)
+/* Right now, for us eq? is the same as eqv? . */
+int p_eqvp(SEXPR x, SEXPR y)
+{
+	if (p_numberp(x) && p_numberp(y))
+		return sexpr_number(x) == sexpr_number(y);
+	else
+		return sexpr_eq(x, y);
+}
+
+int p_equalp(SEXPR x, SEXPR y)
 {
 	for (;;) {
-		if (p_atom(x) && p_atom(y)) {
-			return p_eq(x, y);
-		} else if (p_consp(x) && p_consp(y) &&
-			   p_equal(p_car(x), p_car(y)))
-	       	{
-			x = p_cdr(x);
-			y = p_cdr(y);
+		if (p_pairp(x) && p_pairp(y)) {
+			if (p_equalp(p_car(x), p_car(y))) {
+				x = p_cdr(x);
+				y = p_cdr(y);
+			} else {
+				return 0;
+			}
+		} else if (!p_pairp(x) && !p_pairp(y)) {
+			return p_eqvp(x, y);
 		} else {
 			return 0;
 		}
@@ -103,7 +94,7 @@ int p_equal(SEXPR x, SEXPR y)
 
 SEXPR p_setcar(SEXPR e, SEXPR val)
 {
-	if (!p_consp(e))
+	if (!p_pairp(e))
 		throw_err();
 
 	set_cell_car(sexpr_index(e), val);
@@ -112,7 +103,7 @@ SEXPR p_setcar(SEXPR e, SEXPR val)
 
 SEXPR p_setcdr(SEXPR e, SEXPR val)
 {
-	if (!p_consp(e))
+	if (!p_pairp(e))
 		throw_err();
 
 	set_cell_cdr(sexpr_index(e), val);
@@ -125,9 +116,9 @@ SEXPR p_setcdr(SEXPR e, SEXPR val)
 SEXPR p_assoc(SEXPR x, SEXPR a)
 {
 	for (;;) {
-		if (p_null(a)) {
+		if (p_nullp(a)) {
 			return SEXPR_NIL;
-		} else if (p_equal(p_car(p_car(a)), x)) {
+		} else if (p_equalp(p_car(p_car(a)), x)) { // TODO: -> p_eqp?
 			return p_car(a);
 		} else {
 			a = p_cdr(a);
@@ -140,14 +131,14 @@ SEXPR p_evlis(SEXPR m, SEXPR a)
 {
 	SEXPR head, node, node2;
 	
-	if (p_null(m))
+	if (p_nullp(m))
 		return m;
 
 	push2(m, a);
 	head = push(p_cons(p_eval(p_car(m), a), SEXPR_NIL));
 	node = head;
 	m = p_cdr(m);
-	while (!p_null(m)) {
+	while (!p_nullp(m)) {
 		node2 = p_cons(p_eval(p_car(m), a), SEXPR_NIL);
 		p_setcdr(node, node2);
 		node = node2;
@@ -161,7 +152,7 @@ SEXPR p_evlis(SEXPR m, SEXPR a)
 SEXPR p_evcon(SEXPR c, SEXPR a)
 {
 	for (;;) {
-		if (p_eq(p_eval(p_car(p_car(c)), a), s_true_atom)) {
+		if (p_eqp(p_eval(p_car(p_car(c)), a), SEXPR_TRUE)) {
 			return p_eval(p_car(p_cdr(p_car(c))), a);
 		} else {
 			c = p_cdr(c);
@@ -179,7 +170,7 @@ SEXPR p_evcon(SEXPR c, SEXPR a)
  * If 0, the return value is already the final one, eval does not need to
  * evaluate anything.
  */
-static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
+SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 {
 	SEXPR e1, r, env_new;
 	int celli;
@@ -226,21 +217,21 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		extend_environment(env, cell_car(celli), x);
 		/* eval sequence except the last expression */
 		e1 = cell_cdr(celli);
-		while (!p_null(e1)) {
+		while (!p_nullp(e1)) {
 			/* last expr */
-			if (p_null(p_cdr(e1))) {
+			if (p_nullp(p_cdr(e1))) {
 				break;
 			}
 			r = p_eval(p_car(e1), env);
 			e1 = p_cdr(e1);
 		}
-		if (!p_null(e1)) {
+		if (!p_nullp(e1)) {
 			r = p_car(e1);
 		} else {
 			r = SEXPR_NIL;
 		}
 		popn(4);
-		if (!p_null(r)) {
+		if (!p_nullp(r)) {
 			if (tailrec == NULL) {
 				r = p_eval(r, env);
 			} else {
@@ -265,21 +256,21 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		p_println_env(env);
 		/* eval sequence except the last expression */
 		e1 = cell_cdr(celli);
-		while (!p_null(e1)) {
+		while (!p_nullp(e1)) {
 			/* last expr */
-			if (p_null(p_cdr(e1))) {
+			if (p_nullp(p_cdr(e1))) {
 				break;
 			}
 			r = p_eval(p_car(e1), env);
 			e1 = p_cdr(e1);
 		}
-		if (!p_null(e1)) {
+		if (!p_nullp(e1)) {
 			r = p_car(e1);
 		} else {
 			r = SEXPR_NIL;
 		}
 		popn(5);
-		if (!p_null(r)) {
+		if (!p_nullp(r)) {
 			if (tailrec == NULL) {
 				r = p_eval(r, env);
 			} else {
@@ -300,7 +291,7 @@ static SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		extend_environment(env_new, cell_car(celli), x);
 		/* eval sequence */
 		e1 = cell_cdr(celli);
-		while (!p_null(e1)) {
+		while (!p_nullp(e1)) {
 			r = p_eval(p_car(e1), env_new);
 			e1 = p_cdr(e1);
 		}
@@ -326,11 +317,11 @@ static int listlen(SEXPR e)
 {
 	int n;
 
-	if (!p_consp(e))
+	if (!p_pairp(e))
 		return 0;
 
 	n = 0;
-	while (!p_null(e)) {
+	while (!p_nullp(e)) {
 		n++;
 		e = p_cdr(e);
 	}
@@ -350,6 +341,8 @@ SEXPR p_eval(SEXPR e, SEXPR env)
 
 again:  switch (sexpr_type(e)) {
 	case SEXPR_NIL:
+	case SEXPR_TRUE:
+	case SEXPR_FALSE:
 	case SEXPR_NUMBER:
 	case SEXPR_BUILTIN_FUNCTION:
 	case SEXPR_BUILTIN_SPECIAL:
@@ -362,7 +355,7 @@ again:  switch (sexpr_type(e)) {
 		printf("lookup: ");
 		p_println(e);
 		c = lookup_variable(e, env);
-		if (p_null(c)) {
+		if (p_nullp(c)) {
 			throw_err(); /* unbound symbol */
 		}
 		c = p_cdr(c);
@@ -419,12 +412,18 @@ void p_print(SEXPR sexpr)
 	case SEXPR_NIL:
 		printf("()");
 		break;
+	case SEXPR_TRUE:
+		printf("#t");
+		break;
+	case SEXPR_FALSE:
+		printf("#f");
+		break;
 	case SEXPR_CONS:
 		/* TODO: avoid infinite recursion */
 		i = sexpr_index(sexpr);
 		printf("(");
 		p_print(cell_car(i));
-		while (!p_null(cell_cdr(i))) {
+		while (!p_nullp(cell_cdr(i))) {
 			sexpr = cell_cdr(i);
 			if (sexpr_type(sexpr) == SEXPR_CONS) {
 				i = sexpr_index(sexpr);
@@ -475,8 +474,8 @@ void p_println_env(SEXPR env)
 	int any;
 
 	any = 0;
-	while (!p_null(env)) {
-		if (p_null(p_car(env)))
+	while (!p_nullp(env)) {
+		if (p_nullp(p_car(env)))
 			break;
 		any = 1;
 		p_println(p_cdr(env));

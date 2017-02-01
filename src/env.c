@@ -15,11 +15,11 @@ static SEXPR lookup_local_variable(SEXPR var, SEXPR env)
 {
 	SEXPR link, bind;
 
-	assert(!p_null(env));
+	assert(!p_nullp(env));
 	link = p_cdr(env);
-	while (!p_null(link)) {
+	while (!p_nullp(link)) {
 		bind = p_car(link);
-		if (p_eq(var, p_car(bind))) {
+		if (p_eqp(var, p_car(bind))) {
 			return bind;
 		}
 		link = p_cdr(link);
@@ -35,9 +35,9 @@ SEXPR lookup_variable(SEXPR var, SEXPR env)
 {
 	SEXPR bind;
 
-	while (!p_null(env)) {
+	while (!p_nullp(env)) {
 		bind = lookup_local_variable(var, env);
-		if (!p_null(bind)) {
+		if (!p_nullp(bind)) {
 			return bind;
 		}
 		env = p_car(env);
@@ -52,7 +52,7 @@ SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env)
 	SEXPR bind, link;
 
 	bind = lookup_local_variable(var, env);
-	if (p_null(bind)) {
+	if (p_nullp(bind)) {
 		push(env);
 		bind = p_cons(var, val);
 		link = p_cons(bind, p_cdr(env));
@@ -72,7 +72,7 @@ SEXPR set_variable(SEXPR var, SEXPR val, SEXPR env)
 	SEXPR bind;
 
 	bind = lookup_variable(var, env);
-	if (p_null(bind)) {
+	if (p_nullp(bind)) {
 		throw_err();
 	}
 
@@ -82,11 +82,11 @@ SEXPR set_variable(SEXPR var, SEXPR val, SEXPR env)
 		
 void extend_environment(SEXPR env, SEXPR params, SEXPR args)
 {
-	if (p_null(params))
+	if (p_nullp(params))
 		return;
 
 	/* Handle the case of only one parameter called &rest */
-	if (p_null(p_cdr(params)) && p_eq(p_car(params), s_rest_atom)) {
+	if (p_nullp(p_cdr(params)) && p_eqp(p_car(params), s_rest_atom)) {
 		push(params);
 		define_variable(p_car(params), args, env);
 		pop();
@@ -97,8 +97,9 @@ void extend_environment(SEXPR env, SEXPR params, SEXPR args)
 	define_variable(p_car(params), p_car(args), env);
 	params = p_cdr(params);
 	args = p_cdr(args);
-	while (!p_null(params)) {
-		if (p_null(p_cdr(params)) && p_eq(p_car(params), s_rest_atom))
+	while (!p_nullp(params)) {
+		if (p_nullp(p_cdr(params)) &&
+			p_eqp(p_car(params), s_rest_atom))
 	       	{
 			define_variable(p_car(params), args, env);
 			break;

@@ -30,7 +30,7 @@ static SEXPR s_protect_b;
 static SEXPR s_protect_c;
 
 /* Other precreated atoms */
-SEXPR s_true_atom;
+// SEXPR s_true_atom;
 SEXPR s_quote_atom;
 SEXPR s_rest_atom;
 
@@ -57,10 +57,10 @@ int pop_free_cell(void)
 {
 	int celli;
 
-	if (p_null(s_free_cells)) {
+	if (p_nullp(s_free_cells)) {
 		printf("[gc: need cells]\n");
 		p_gc();
-		if (p_null(s_free_cells)) {
+		if (p_nullp(s_free_cells)) {
 			fprintf(stderr, "lispe: out of cells\n");
 			exit(EXIT_FAILURE);
 		}
@@ -118,7 +118,7 @@ void push3(SEXPR e1, SEXPR e2, SEXPR e3)
 /* Pop last expression from stack. */
 void pop(void)
 {
-	assert(!p_null(s_stack));
+	assert(!p_nullp(s_stack));
 	s_stack = p_cdr(s_stack);
 }
 
@@ -132,7 +132,7 @@ void popn(int n)
 
 int stack_empty(void)
 {
-	return p_equal(s_stack, SEXPR_NIL);
+	return p_eqp(s_stack, SEXPR_NIL);
 }
 
 /* Marks an expression and subexpressions. */
@@ -205,13 +205,13 @@ void p_gc(void)
 
 static void install_symbols(void)
 {
-	SEXPR e;
+	/*
+	s_false_atom = make_symbol("#f", 1);
+	define_variable(s_false_atom, s_false_atom, s_env);
 
-	// e = make_symbol("nil", 3);
-	// define_variable(e, SEXPR_NIL, s_env);
-
-	s_true_atom = make_symbol("t", 1);
+	s_true_atom = make_symbol("#t", 1);
 	define_variable(s_true_atom, s_true_atom, s_env);
+	*/
 
 	s_quote_atom = make_symbol("quote", 5);
 	define_variable(s_quote_atom, s_quote_atom, s_hidenv);

@@ -16,20 +16,6 @@ const char* sexpr_name(SEXPR e)
 	return get_symbol(sexpr_index(e));
 }
 
-int sexpr_equal(SEXPR e1, SEXPR e2)
-{
-	int t;
-
-	t = sexpr_type(e1);
-	if (t != sexpr_type(e2)) {
-		return 0;
-	} else if (t == SEXPR_NUMBER) {
-		return sexpr_number(e1) == sexpr_number(e2);
-	} else {
-		return sexpr_eq(e1, e2);
-	}
-}
-
 SEXPR make_number(float n)
 {
 	int i;

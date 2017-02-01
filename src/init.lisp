@@ -1,10 +1,29 @@
-(define else t)
-(define nil '())
+(define else #t)
 
-(define caar (lambda (p) (car (car p))))
-(define cadr (lambda (p) (car (cdr p))))
-(define cdar (lambda (p) (cdr (car p))))
-(define cddr (lambda (p) (cdr (cdr p))))
+(define (null? p)
+  (eq? p '()))
+
+(define (zero? n)
+  (eqv? n 0))
+
+(define (positive? n)
+  (> n 0))
+
+(define (negative? n)
+  (< n 0))
+
+(define (not b)
+  (eq? b #f))
+
+(define (boolean? b)
+  (cond ((eq? b #t) #t)
+	((eq? b #f) #t)
+	(else #f)))
+
+(define (caar p) (car (car p)))
+(define (cadr p) (car (cdr p)))
+(define (cdar p) (cdr (car p)))
+(define (cddr p) (cdr (cdr p)))
 
 (define map (lambda (fn p)
     (cond ((null p) nil)
@@ -22,8 +41,6 @@
 (define zerop (lambda (n)
     (cond ((eq n 0) t)
 	  (t nil))))
-
-(define not null)
 
 (define booleanp (lambda (b)
     (cond ((null b) t)

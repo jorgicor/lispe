@@ -3,15 +3,15 @@
 
 /* pred.c */
 
-int p_null(SEXPR e);
-int p_atom(SEXPR x);
-int p_consp(SEXPR e);
+int p_nullp(SEXPR e);
+int p_pairp(SEXPR e);
 int p_symbolp(SEXPR e);
 int p_numberp(SEXPR e);
 SEXPR p_car(SEXPR e);
 SEXPR p_cdr(SEXPR e);
-int p_eq(SEXPR x, SEXPR y);
-int p_equal(SEXPR x, SEXPR y);
+int p_eqp(SEXPR x, SEXPR y);
+int p_eqvp(SEXPR x, SEXPR y);
+int p_equalp(SEXPR x, SEXPR y);
 SEXPR p_setcar(SEXPR e, SEXPR val);
 SEXPR p_setcdr(SEXPR e, SEXPR val);
 SEXPR p_assoc(SEXPR x, SEXPR a);
@@ -19,6 +19,7 @@ SEXPR p_evcon(SEXPR c, SEXPR a);
 SEXPR p_evlis(SEXPR m, SEXPR a);
 SEXPR p_eval(SEXPR e, SEXPR a);
 SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
+SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2);
 
 void p_print(SEXPR sexpr);
 void p_println(SEXPR sexpr);
@@ -27,7 +28,8 @@ void p_println_env(SEXPR env);
 /* gcbase.c */
 
 extern SEXPR s_env;
-extern SEXPR s_true_atom;
+// extern SEXPR s_true_atom;
+// extern SEXPR s_false_atom;
 extern SEXPR s_quote_atom;
 extern SEXPR s_rest_atom;
 

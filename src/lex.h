@@ -17,6 +17,8 @@ int getc_from_channel(struct input_channel *ic);
 enum {
 	T_ATOM = 1024,
 	T_NUMBER,
+	T_TRUE,
+	T_FALSE
 };
 
 enum {

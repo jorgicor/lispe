@@ -18,14 +18,12 @@
 #include <string.h>
 #include <setjmp.h>
 
-static SEXPR plus(SEXPR e, SEXPR a);
-static SEXPR difference(SEXPR e, SEXPR a);
-static SEXPR times(SEXPR e, SEXPR a);
-static SEXPR quotient(SEXPR e, SEXPR a);
-static SEXPR eq(SEXPR e, SEXPR a);
-static SEXPR equal(SEXPR e, SEXPR a);
-static SEXPR atom(SEXPR e, SEXPR a);
+static SEXPR pairp(SEXPR e, SEXPR a);
+static SEXPR numberp(SEXPR e, SEXPR a);
 static SEXPR symbolp(SEXPR e, SEXPR a);
+static SEXPR eqp(SEXPR e, SEXPR a);
+static SEXPR eqvp(SEXPR e, SEXPR a);
+static SEXPR equalp(SEXPR e, SEXPR a);
 static SEXPR cons(SEXPR e, SEXPR a);
 static SEXPR car(SEXPR e, SEXPR a);
 static SEXPR cdr(SEXPR e, SEXPR a);
@@ -33,22 +31,24 @@ static SEXPR setcar(SEXPR e, SEXPR a);
 static SEXPR setcdr(SEXPR e, SEXPR a);
 static SEXPR quote(SEXPR e, SEXPR a);
 static SEXPR cond(SEXPR e, SEXPR a);
-static SEXPR eval(SEXPR e, SEXPR a);
-static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR lambda(SEXPR e, SEXPR a);
 static SEXPR dynfn(SEXPR e, SEXPR a);
 static SEXPR special(SEXPR e, SEXPR a);
 static SEXPR body(SEXPR e, SEXPR a);
-static SEXPR assoc(SEXPR e, SEXPR a);
-static SEXPR setq(SEXPR sexpr, SEXPR a);
+static SEXPR define(SEXPR sexpr, SEXPR a);
+static SEXPR set(SEXPR sexpr, SEXPR a);
+static SEXPR plus(SEXPR e, SEXPR a);
+static SEXPR difference(SEXPR e, SEXPR a);
+static SEXPR times(SEXPR e, SEXPR a);
+static SEXPR quotient(SEXPR e, SEXPR a);
 static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
-static SEXPR consp(SEXPR e, SEXPR a);
-static SEXPR numberp(SEXPR e, SEXPR a);
-static SEXPR null(SEXPR e, SEXPR a);
+static SEXPR list(SEXPR e, SEXPR a);
+static SEXPR assoc(SEXPR e, SEXPR a);
+static SEXPR eval(SEXPR e, SEXPR a);
+static SEXPR apply(SEXPR e, SEXPR a);
 static SEXPR gc(SEXPR e, SEXPR a);
 static SEXPR quit(SEXPR e, SEXPR a);
-static SEXPR define(SEXPR sexpr, SEXPR a);
 
 /*********************************************************
  * Exceptions.
@@ -70,28 +70,28 @@ struct builtin {
 };
 
 static struct builtin builtin_functions[] = {
-	{ "atom", &atom, 0 },
 	{ "assoc", &assoc, 0 },
 	{ "car",  &car, 0 },
 	{ "cdr", &cdr, 0 },
 	{ "cons", &cons, 0 },
-	{ "consp", &consp, 0 },
+	{ "pair?", &pairp, 0 },
 	{ "-", &difference, 0 },
-	{ "eq", &eq, 0 },
-	{ "equal", &equal, 0 },
+	{ "eq?", &eqp, 0 },
+	{ "eqv?", &eqvp, 0 },
+	{ "equal?", &equalp, 0 },
 	{ ">", &greaterp, 0 },
 	{ "gc", &gc, 0 },
 	{ "<", &lessp, 0 },
-	{ "null", &null, 0 },
-	{ "numberp", &numberp, 0 },
+	{ "number?", &numberp, 0 },
 	{ "+", &plus, 0 },
-	{ "setcar", &setcar, 0 },
-	{ "setcdr", &setcdr, 0 },
-	{ "symbolp", &symbolp, 0 },
+	{ "set-car!", &setcar, 0 },
+	{ "set-cdr!", &setcdr, 0 },
+	{ "symbol?", &symbolp, 0 },
 	{ "*", &times, 0 },
 	{ "quit", &quit, 0 },
 	{ "/", &quotient, 0 },
-	{ "eval", &eval, 1 },	/* TODO: should be tailrec? should be func? */
+	{ "eval", &eval, 1 },
+	{ "apply", &apply, 0 },
 	/* modulo and remainder */
 };
 
@@ -102,7 +102,7 @@ static struct builtin builtin_specials[] = {
 	{ "dynfn", &dynfn, 0 },
 	{ "list", &list, 0 },
 	{ "quote", &quote, 0 },
-	{ "setq", &setq, 0 },
+	{ "set!", &set, 0 },
 	{ "define", &define, 0 },
 	{ "special", &special, 0 },
 };
@@ -198,7 +198,7 @@ static void load_init_file(void)
 		goto end;
 	}
 
-	fp = fopen("init.lisp", "r");
+	fp = fopen("init.scm", "r");
 	if (!fp)
 		return;
 
@@ -238,12 +238,14 @@ static SEXPR quote(SEXPR e, SEXPR a)
 
 static SEXPR cond(SEXPR e, SEXPR a)
 {
+	SEXPR tmp;
+
 	for (;;) {
-		if (p_eq(p_eval(p_car(p_car(e)), a), s_true_atom)) {
-			p_println(p_car(p_cdr(p_car(e))));
-			return p_car(p_cdr(p_car(e)));
-		} else {
+		tmp = p_car(e);
+		if (p_eqp(p_eval(p_car(tmp), a), SEXPR_FALSE)) {
 			e = p_cdr(e);
+		} else  {
+			return p_car(p_cdr(tmp));
 		}
 	}
 }
@@ -264,42 +266,50 @@ static SEXPR quit(SEXPR e, SEXPR a)
 	exit(EXIT_SUCCESS);
 }
 
-static SEXPR setq(SEXPR sexpr, SEXPR a)
+static SEXPR set(SEXPR sexpr, SEXPR a)
 {
 	SEXPR var;
 	SEXPR val;
 
 	val = SEXPR_NIL;
-	push3(sexpr, a, val);
-	while (!p_null(sexpr)) {
+	push2(sexpr, a);
+	if (!p_nullp(sexpr)) {
 		var = p_car(sexpr);
 		if (!p_symbolp(var))
 			throw_err();
 
 		sexpr = p_cdr(sexpr);
-		pop();
 		val = p_eval(p_car(sexpr), a);
-		push(val);
 		set_variable(var, val, a);
-		sexpr = p_cdr(sexpr);
 	}
-	popn(3);
+	popn(2);
 
 	return val;
 }
 
 static SEXPR define(SEXPR sexpr, SEXPR a)
 {
-	SEXPR var;
-	SEXPR val;
+	SEXPR var, val, args;
+	int is_fn;
 
 	push2(sexpr, a);
+	is_fn = 0;
 	var = p_car(sexpr);
+	if (p_pairp(var)) {
+		args = p_cdr(var);
+		var = p_car(var);
+		is_fn = 1;
+	}
+
 	if (!p_symbolp(var))
 		throw_err();
 
-	sexpr = p_cdr(sexpr);
-	val = p_eval(p_car(sexpr), a);
+	if (is_fn) {
+		val = lambda(p_cons(args, p_cdr(sexpr)), a);
+	} else {
+		val = p_eval(p_car(p_cdr(sexpr)), a);
+	}
+
 	define_variable(var, val, a);
 	popn(2);
 
@@ -314,7 +324,7 @@ static SEXPR cons(SEXPR e, SEXPR a)
 static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
 {
 	e = p_evlis(e, a);
-	while (!p_null(e)) {
+	while (!p_nullp(e)) {
 		if (!p_numberp(p_car(e)))
 			throw_err();
 		n = fun(n, sexpr_number(p_car(e)));
@@ -328,22 +338,22 @@ static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 	float n, n2;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_numberp(p_car(e)))
+	if (p_nullp(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
 	e = p_cdr(e);
-	while (!p_null(e)) {
+	while (!p_nullp(e)) {
 		if (!p_numberp(p_car(e)))
 			throw_err();
 		n2 = sexpr_number(p_car(e));
 		if (!fun(n, n2))
-			return SEXPR_NIL;
+			return SEXPR_FALSE;
 		n = n2;
 		e = p_cdr(e);
 	}
 
-	return s_true_atom;
+	return SEXPR_TRUE;
 }
 
 static int lessp_fun(float a, float b)
@@ -386,11 +396,11 @@ static SEXPR difference(SEXPR e, SEXPR a)
 	float n;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_numberp(p_car(e)))
+	if (p_nullp(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
-	if (p_null(p_cdr(e)))
+	if (p_nullp(p_cdr(e)))
 		return make_number(-n);
 
 	e = push(p_cdr(e));
@@ -419,11 +429,11 @@ static SEXPR quotient(SEXPR e, SEXPR a)
 	float n;
 
 	e = p_evlis(e, a);
-	if (p_null(e) || !p_numberp(p_car(e)))
+	if (p_nullp(e) || !p_numberp(p_car(e)))
 		throw_err();
 
 	n = sexpr_number(p_car(e));
-	if (p_null(p_cdr(e)))
+	if (p_nullp(p_cdr(e)))
 		return make_number(1.0f / n);
 
 	e = push(p_cdr(e));
@@ -460,38 +470,35 @@ static SEXPR setcdr(SEXPR e, SEXPR a)
 	return p_setcdr(p, q); 
 }
 
-static SEXPR atom(SEXPR e, SEXPR a)
-{
-	return p_atom(p_car(e)) ? s_true_atom : SEXPR_NIL;
-}
-
 static SEXPR symbolp(SEXPR e, SEXPR a)
 {
-	return p_symbolp(p_car(e)) ? s_true_atom : SEXPR_NIL;
+	return p_symbolp(p_car(e)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-static SEXPR consp(SEXPR e, SEXPR a)
+static SEXPR pairp(SEXPR e, SEXPR a)
 {
-	return p_consp(p_car(e)) ? s_true_atom : SEXPR_NIL;
+	return p_pairp(p_car(e)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static SEXPR numberp(SEXPR e, SEXPR a)
 {
-	return p_numberp(p_car(e)) ? s_true_atom : SEXPR_NIL;
+	return p_numberp(p_car(e)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-static SEXPR null(SEXPR e, SEXPR a)
+static SEXPR eqp(SEXPR e, SEXPR a)
 {
-	printf("e:");
-	p_println(e);
-	printf("car e:");
-	p_println(p_car(e));
-	return p_null(p_car(e)) ? s_true_atom : SEXPR_NIL;
+	return p_eqp(p_car(e), p_car(p_cdr(e))) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-static SEXPR eq(SEXPR e, SEXPR a)
+static SEXPR eqvp(SEXPR e, SEXPR a)
 {
-	return p_eq(p_car(e), p_car(p_cdr(e))) ? s_true_atom : SEXPR_NIL;
+	return p_eqvp(p_car(e), p_car(p_cdr(e))) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static SEXPR equalp(SEXPR e, SEXPR a)
+{
+	return p_equalp(p_car(e), p_car(p_cdr(e))) ? SEXPR_TRUE
+	                                           : SEXPR_FALSE;
 }
 
 static SEXPR special(SEXPR e, SEXPR a)
@@ -538,19 +545,21 @@ static SEXPR body(SEXPR e, SEXPR a)
 	}
 }
 
-static SEXPR equal(SEXPR e, SEXPR a)
-{
-	if (p_equal(p_car(e), p_car(p_cdr(e))))
-		return s_true_atom;
-	else
-		return SEXPR_NIL;
-}
-
 static SEXPR eval(SEXPR e, SEXPR a)
 {
-	// e = p_eval(p_car(e), a);
-	// return e;
 	return p_car(e);
+}
+
+static SEXPR apply(SEXPR e, SEXPR a)
+{
+	int tailrec;
+	SEXPR env2, r;
+
+	r = p_apply(p_car(e), p_car(p_cdr(e)), a, &tailrec, &env2); 
+	if (tailrec) {
+		r = p_eval(r, env2);
+	}
+	return r;
 }
 
 static SEXPR gc(SEXPR e, SEXPR a)
