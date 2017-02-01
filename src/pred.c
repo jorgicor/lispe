@@ -359,6 +359,8 @@ again:  switch (sexpr_type(e)) {
 		s_evalc--;
 		return e;
 	case SEXPR_SYMBOL:
+		printf("lookup: ");
+		p_println(e);
 		c = lookup_variable(e, env);
 		if (p_null(c)) {
 			throw_err(); /* unbound symbol */
@@ -415,7 +417,7 @@ void p_print(SEXPR sexpr)
 
 	switch (sexpr_type(sexpr)) {
 	case SEXPR_NIL:
-		printf("nil");
+		printf("()");
 		break;
 	case SEXPR_CONS:
 		/* TODO: avoid infinite recursion */

@@ -46,23 +46,37 @@ SEXPR lookup_variable(SEXPR var, SEXPR env)
 	return SEXPR_NIL;
 }
 
-
-/* Sets a varable (created if needed) in the environment env. */
+/* Sets a varable (and creates it if needed) in the environment env. */
 SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env)
 {
 	SEXPR bind, link;
 
 	bind = lookup_local_variable(var, env);
 	if (p_null(bind)) {
-		push3(var, val, env);
+		push(env);
 		bind = p_cons(var, val);
 		link = p_cons(bind, p_cdr(env));
-		popn(3);
+		pop();
 		p_setcdr(env, link);
 	} else {
 		p_setcdr(bind, val);
 	}
 
+	return val;
+}
+
+/* Sets a varable (must exist) in the environment env or parent environments.
+ */
+SEXPR set_variable(SEXPR var, SEXPR val, SEXPR env)
+{
+	SEXPR bind;
+
+	bind = lookup_variable(var, env);
+	if (p_null(bind)) {
+		throw_err();
+	}
+
+	p_setcdr(bind, val);
 	return val;
 }
 		

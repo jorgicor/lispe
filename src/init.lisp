@@ -1,73 +1,53 @@
-(setq else t)
+(define else t)
+(define nil '())
 
-(setq caar (lambda (p) (car (car p))))
-(setq cadr (lambda (p) (car (cdr p))))
-(setq cdar (lambda (p) (cdr (car p))))
-(setq cddr (lambda (p) (cdr (cdr p))))
+(define caar (lambda (p) (car (car p))))
+(define cadr (lambda (p) (car (cdr p))))
+(define cdar (lambda (p) (cdr (car p))))
+(define cddr (lambda (p) (cdr (cdr p))))
 
-(setq define (special (a &rest)
-    (cond ((symbolp a) (list 'setq a (car &rest)))
-           (t (list 'setq (car a)
-                    (cons 'lambda (cons (cdr a) &rest)))))))
-
-(setq map (lambda (fn p)
+(define map (lambda (fn p)
     (cond ((null p) nil)
            (t (cons (fn (car p)) (map fn (cdr p)))))))
 
-(setq let (special (varlist &rest)
+(define let (special (varlist &rest)
     (cons (cons 'lambda (cons (map car varlist) &rest))
 	  (map cadr varlist))))
 
-(setq listp (lambda (p)
+(define listp (lambda (p)
     (cond ((null p) t)
 	  ((consp p) t)
 	  (t nil))))
 
-(setq zerop (lambda (n)
+(define zerop (lambda (n)
     (cond ((eq n 0) t)
 	  (t nil))))
 
-(setq not null)
+(define not null)
 
-(setq booleanp (lambda (b)
+(define booleanp (lambda (b)
     (cond ((null b) t)
 	  ((eq b t) t)
 	  (t nil))))
 
-(setq begin (special (&rest)
-      (eval (cons (cons 'lambda (cons nil &rest)) nil))))
+(define begin (special (&rest)
+    (list (cons 'lambda (cons nil &rest)))))
 
-(setq if (special (a b c)
-    (cond ((eval a) (eval b))
-	  (t (eval c)))))
+(define if (special (a b c)
+    (cond (a b)
+	  (t c))))
 
-(setq last (lambda (p)
-    (cond ((null p) nil)
-	  ((null (cdr p)) (car p))
-	  ((not (consp (cdr p))) p)
-	  (t (last (cdr p))))))
+(define append (lambda (p q)
+    (cond ((null p) (cond ((null q) nil)
+                           (t (cons (car q) (append p (cdr q))))))
+           (t (cons (car p) (append (cdr p) q))))))
 
-(setq lastcons (lambda (p)
-    (cond ((consp p)
-	   	(cond ((null (cdr p)) p)
-		      (t (lastcons (cdr p))))
-	   (t nil)))))
-
-(setq nconc (lambda (p q)
-    (setcdr (lastcons p) q)))
-
-(setq append (lambda (p q)
-    (cond ((null p)
-	   	(cond ((null q) nil)
-		       (t (cons (car q) (append p (cdr q))))))
-	   (t (cons (car p) (append (cdr p) q))))))
-
-(setq unev-let (special (varlist &rest)
+(define unev-let (special (varlist &rest)
     (cons
 	    (cons 'lambda (cons (map car varlist) &rest))
 	    (map cadr varlist))))
 
-(setq and (special (&rest)
+(define and2 (special (&rest)
     (eval (unev-let ((andlis nil))
       (setq andlis (lambda (q)
 	(cond ((null q) t)
@@ -76,7 +56,24 @@
 	      (t (andlis (cdr q))))))
       (andlis &rest)))))
 
-(setq or (special (&rest)
+(define and (special (&rest)
+    (let ((andlis nil))
+      (setq andlis (lambda (q)
+	(cond ((null q) t)
+	      ((null (car q)) nil)
+	      ((null (cdr q)) (car q))
+	      (t (andlis (cdr q))))))
+      (andlis &rest))))
+
+(define and3 (special (&rest)
+    (define andlis (lambda (q)
+	(cond ((null q) t)
+	      ((null (car q)) nil)
+	      ((null (cdr q)) (car q))
+	      (t (andlis (cdr q))))))
+    (andlis &rest)))
+
+(define or (special (&rest)
     (eval (unev-let ((orlis nil))
       (setq orlis (lambda (q)
 	(cond ((null q) nil)
@@ -84,7 +81,7 @@
 	      (t (orlis (cdr q))))))
       (orlis &rest)))))
 
-(setq <= (lambda (a &rest) 
+(define <= (lambda (a &rest) 
     (eval (unev-let ((lesseq nil))
         (setq lesseq (lambda (a q)
             (cond ((null q) t)
@@ -93,7 +90,7 @@
 		  (t nil))))
         (lesseq a &rest)))))
 
-(setq >= (lambda (a &rest) 
+(define >= (lambda (a &rest) 
     (eval (unev-let ((greatereq nil))
         (setq greatereq (lambda (a q)
             (cond ((null q) t)
@@ -102,26 +99,23 @@
 		  (t nil))))
         (greatereq a &rest)))))
 
-(setq inc (special (var)
+(define inc (special (var)
     (eval (list 'setq var (list '+ 1 var)))))
 
-(setq set (lambda (x y)
+(define set (lambda (x y)
     (eval (list 'setq x 'y))))
 
-(setq push (special (a p)
-   (set p (eval (list 'cons a p)))))
-
-(setq fact (lambda (n)
+(define fact (lambda (n)
     (cond ((eq n 0) 1)
 	  (t (* n (fact (- n 1)))))))
 
-(setq make-counter (lambda (value)
+(define make-counter (lambda (value)
     (lambda () (setq value (+ value 1)))))
 
-(setq make-balance (lambda (balance)
+(define make-balance (lambda (balance)
     (lambda (amount) (setq balance (- balance amount)))))
 
-(setq sqrt2 (lambda (x)
+(define sqrt2 (lambda (x)
     (let ((abs nil)
 	  (average nil)
 	  (square nil)
@@ -139,7 +133,7 @@
 			       (t (sqrt-iter (improve guess))))))
       (sqrt-iter 1))))
 
-(setq sqrt (lambda (x)
+(define sqrt (lambda (x)
     ((lambda (abs average square good-enough? improve sqr-iter)
        (setq abs (lambda (n) (cond ((< n 0) (- n)) (t n))))
        (setq average (lambda (x y) (/ (+ x y) 2)))
@@ -153,25 +147,22 @@
        (sqrt-iter 1)) nil nil nil nil nil nil)))
 
 
-(setq cons3 (lambda (x y)
+(define cons3 (lambda (x y)
      (lambda (m)
 	    (cond ((eq m 0) x)
 		  ((eq m 1) y)
 		  (t 'error)))))
 
-(define (cons2 x y)
+(define cons2 (lambda (x y)
   (let ((dispatch nil))
     (setq dispatch (lambda (m)
 			    (cond ((eq m 0) x)
 				  ((eq m 1) y)
 				  (t 'error))))
-    dispatch))
+    dispatch)))
 
-(setq nil! (special (x)
-    (eval (list 'setq x nil))))
-
-(setq factorial (lambda (n) (fact-iter 1 1 n)))
-(setq fact-iter (lambda (p c m)
+(define factorial (lambda (n) (fact-iter 1 1 n)))
+(define fact-iter (lambda (p c m)
 	(cond ((> c m) p)
 	      (t (fact-iter (* c p) (+ c 1) m)))))
 

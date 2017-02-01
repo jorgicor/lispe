@@ -207,8 +207,8 @@ static void install_symbols(void)
 {
 	SEXPR e;
 
-	e = make_symbol("nil", 3);
-	define_variable(e, SEXPR_NIL, s_env);
+	// e = make_symbol("nil", 3);
+	// define_variable(e, SEXPR_NIL, s_env);
 
 	s_true_atom = make_symbol("t", 1);
 	define_variable(s_true_atom, s_true_atom, s_env);

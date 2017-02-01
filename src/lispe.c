@@ -48,6 +48,7 @@ static SEXPR numberp(SEXPR e, SEXPR a);
 static SEXPR null(SEXPR e, SEXPR a);
 static SEXPR gc(SEXPR e, SEXPR a);
 static SEXPR quit(SEXPR e, SEXPR a);
+static SEXPR define(SEXPR sexpr, SEXPR a);
 
 /*********************************************************
  * Exceptions.
@@ -102,6 +103,7 @@ static struct builtin builtin_specials[] = {
 	{ "list", &list, 0 },
 	{ "quote", &quote, 0 },
 	{ "setq", &setq, 0 },
+	{ "define", &define, 0 },
 	{ "special", &special, 0 },
 };
 
@@ -278,10 +280,28 @@ static SEXPR setq(SEXPR sexpr, SEXPR a)
 		pop();
 		val = p_eval(p_car(sexpr), a);
 		push(val);
-		define_variable(var, val, a);
+		set_variable(var, val, a);
 		sexpr = p_cdr(sexpr);
 	}
 	popn(3);
+
+	return val;
+}
+
+static SEXPR define(SEXPR sexpr, SEXPR a)
+{
+	SEXPR var;
+	SEXPR val;
+
+	push2(sexpr, a);
+	var = p_car(sexpr);
+	if (!p_symbolp(var))
+		throw_err();
+
+	sexpr = p_cdr(sexpr);
+	val = p_eval(p_car(sexpr), a);
+	define_variable(var, val, a);
+	popn(2);
 
 	return val;
 }
@@ -462,6 +482,10 @@ static SEXPR numberp(SEXPR e, SEXPR a)
 
 static SEXPR null(SEXPR e, SEXPR a)
 {
+	printf("e:");
+	p_println(e);
+	printf("car e:");
+	p_println(p_car(e));
 	return p_null(p_car(e)) ? s_true_atom : SEXPR_NIL;
 }
 
