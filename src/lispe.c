@@ -43,6 +43,8 @@ static SEXPR times(SEXPR e, SEXPR a);
 static SEXPR quotient(SEXPR e, SEXPR a);
 static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
+static SEXPR greater_eqp(SEXPR sexpr, SEXPR a);
+static SEXPR less_eqp(SEXPR sexpr, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
@@ -84,8 +86,10 @@ static struct builtin builtin_functions[] = {
 	{ "eqv?", &eqvp, 0 },
 	{ "equal?", &equalp, 0 },
 	{ ">", &greaterp, 0 },
+	{ ">=", &greater_eqp, 0 },
 	{ "gc", &gc, 0 },
 	{ "<", &lessp, 0 },
+	{ "<=", &less_eqp, 0 },
 	{ "number?", &numberp, 0 },
 	{ "+", &plus, 0 },
 	{ "set-car!", &setcar, 0 },
@@ -346,10 +350,13 @@ static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 	float n, n2;
 
 	e = p_evlis(e, a);
-	if (p_nullp(e) || !p_numberp(p_car(e))) {
-		throw_err("wrong type for logic operation");
+	if (p_nullp(e)) {
+	       return SEXPR_TRUE;
 	}
 
+	if (!p_numberp(p_car(e))) {
+		throw_err("wrong type for logic operation");
+	}
 	n = sexpr_number(p_car(e));
 	e = p_cdr(e);
 	while (!p_nullp(e)) {
@@ -384,6 +391,26 @@ static int greaterp_fun(float a, float b)
 static SEXPR greaterp(SEXPR e, SEXPR a)
 {
 	return logic(e, a, greaterp_fun);
+}
+
+static int greater_eqp_fun(float a, float b)
+{
+	return a >= b;
+}
+
+static SEXPR greater_eqp(SEXPR e, SEXPR a)
+{
+	return logic(e, a, greater_eqp_fun);
+}
+
+static int less_eqp_fun(float a, float b)
+{
+	return a <= b;
+}
+
+static SEXPR less_eqp(SEXPR e, SEXPR a)
+{
+	return logic(e, a, less_eqp_fun);
 }
 
 static float plus_fun(float a, float b)

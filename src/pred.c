@@ -360,7 +360,7 @@ again:  switch (sexpr_type(e)) {
 		// p_println(e);
 		c = lookup_variable(e, env);
 		if (p_nullp(c)) {
-			throw_err("variable is not bound");
+			throw_err("unbounded variable");
 		}
 		c = p_cdr(c);
 		s_evalc--;
