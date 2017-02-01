@@ -53,10 +53,10 @@ SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env)
 
 	bind = lookup_local_variable(var, env);
 	if (p_nullp(bind)) {
-		push(env);
+		push3(var, val, env);
 		bind = p_cons(var, val);
 		link = p_cons(bind, p_cdr(env));
-		pop();
+		popn(3);
 		p_setcdr(env, link);
 	} else {
 		p_setcdr(bind, val);
@@ -85,11 +85,11 @@ void extend_environment(SEXPR env, SEXPR params, SEXPR args)
 	if (p_nullp(params))
 		return;
 
-	/* Handle the case of only one parameter called &rest */
-	if (p_nullp(p_cdr(params)) && p_eqp(p_car(params), s_rest_atom)) {
-		push(params);
-		define_variable(p_car(params), args, env);
-		pop();
+	if (p_symbolp(params)) {
+		/* (lambda x x)
+		 * The procedure takes n arguments, combined on a list in x.
+		 */
+		define_variable(params, args, env);
 		return;
 	}
 
@@ -98,16 +98,16 @@ void extend_environment(SEXPR env, SEXPR params, SEXPR args)
 	params = p_cdr(params);
 	args = p_cdr(args);
 	while (!p_nullp(params)) {
-		if (p_nullp(p_cdr(params)) &&
-			p_eqp(p_car(params), s_rest_atom))
-	       	{
-			define_variable(p_car(params), args, env);
+		if (p_pairp(params)) {
+			/* lambda () OR lambda (a b ...) */
+			define_variable(p_car(params), p_car(args), env);
+			params = p_cdr(params);
+			args = p_cdr(args);
+		} else {
+			/* lambda (a b . rest) */
+			define_variable(params, args, env);
 			break;
 		}
-
-		define_variable(p_car(params), p_car(args), env);
-		args = p_cdr(args);
-		params = p_cdr(params);
 	}
 	popn(3);
 }
