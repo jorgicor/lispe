@@ -45,6 +45,7 @@ static SEXPR lessp(SEXPR sexpr, SEXPR a);
 static SEXPR greaterp(SEXPR sexpr, SEXPR a);
 static SEXPR greater_eqp(SEXPR sexpr, SEXPR a);
 static SEXPR less_eqp(SEXPR sexpr, SEXPR a);
+static SEXPR equal_numbersp(SEXPR sexpr, SEXPR a);
 static SEXPR list(SEXPR e, SEXPR a);
 static SEXPR assoc(SEXPR e, SEXPR a);
 static SEXPR eval(SEXPR e, SEXPR a);
@@ -76,17 +77,20 @@ struct builtin {
 };
 
 static struct builtin builtin_functions[] = {
+	{ "apply", &apply, 0 },
 	{ "assoc", &assoc, 0 },
 	{ "car",  &car, 0 },
 	{ "cdr", &cdr, 0 },
 	{ "cons", &cons, 0 },
 	{ "pair?", &pairp, 0 },
 	{ "-", &difference, 0 },
+	{ "=", &equal_numbersp, 0 },
 	{ "eq?", &eqp, 0 },
 	{ "eqv?", &eqvp, 0 },
 	{ "equal?", &equalp, 0 },
 	{ ">", &greaterp, 0 },
 	{ ">=", &greater_eqp, 0 },
+	{ "eval", &eval, 1 },
 	{ "gc", &gc, 0 },
 	{ "<", &lessp, 0 },
 	{ "<=", &less_eqp, 0 },
@@ -98,8 +102,6 @@ static struct builtin builtin_functions[] = {
 	{ "*", &times, 0 },
 	{ "quit", &quit, 0 },
 	{ "/", &quotient, 0 },
-	{ "eval", &eval, 1 },
-	{ "apply", &apply, 0 },
 	/* modulo and remainder */
 };
 
@@ -411,6 +413,16 @@ static int less_eqp_fun(float a, float b)
 static SEXPR less_eqp(SEXPR e, SEXPR a)
 {
 	return logic(e, a, less_eqp_fun);
+}
+
+static int equal_numbersp_fun(float a, float b)
+{
+	return a == b;
+}
+
+static SEXPR equal_numbersp(SEXPR e, SEXPR a)
+{
+	return logic(e, a, equal_numbersp_fun);
 }
 
 static float plus_fun(float a, float b)
