@@ -41,16 +41,18 @@ int p_pairp(SEXPR e)
 
 SEXPR p_car(SEXPR e)
 {
-	if (!p_pairp(e))
-		throw_err();
+	if (!p_pairp(e)) {
+		throw_err("car used with something that is not a pair");
+	}
 
 	return cell_car(sexpr_index(e));
 }
 
 SEXPR p_cdr(SEXPR e)
 {
-	if (!p_pairp(e))
-		throw_err();
+	if (!p_pairp(e)) {
+		throw_err("cdr used with something that is not a pair");
+	}
 
 	return cell_cdr(sexpr_index(e));
 }
@@ -94,8 +96,9 @@ int p_equalp(SEXPR x, SEXPR y)
 
 SEXPR p_setcar(SEXPR e, SEXPR val)
 {
-	if (!p_pairp(e))
-		throw_err();
+	if (!p_pairp(e)) {
+		throw_err("set-car! used on something that is not a pair");
+	}
 
 	set_cell_car(sexpr_index(e), val);
 	return val;
@@ -103,8 +106,9 @@ SEXPR p_setcar(SEXPR e, SEXPR val)
 
 SEXPR p_setcdr(SEXPR e, SEXPR val)
 {
-	if (!p_pairp(e))
-		throw_err();
+	if (!p_pairp(e)) {
+		throw_err("set-cdr! used on something that is not a pair");
+	}
 
 	set_cell_cdr(sexpr_index(e), val);
 	return val;
@@ -305,7 +309,7 @@ SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
 		// p_println_env(env);
 		break;
 	default:
-		throw_err();
+		throw_err("applying to a unknown object type");
 	}
 
 	return r;
@@ -356,7 +360,7 @@ again:  switch (sexpr_type(e)) {
 		// p_println(e);
 		c = lookup_variable(e, env);
 		if (p_nullp(c)) {
-			throw_err(); /* unbound symbol */
+			throw_err("variable is not bound");
 		}
 		c = p_cdr(c);
 		s_evalc--;
@@ -399,7 +403,7 @@ again:  switch (sexpr_type(e)) {
 		return c;
 
 	default:
-		throw_err();
+		throw_err("unknown object to eval");
 		return SEXPR_NIL;
 	}
 }

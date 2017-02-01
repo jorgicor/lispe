@@ -56,8 +56,12 @@ static SEXPR quit(SEXPR e, SEXPR a);
 
 static jmp_buf buf; 
 
-void throw_err(void)
+void throw_err(const char *s)
 {
+	printf("lispe: ** error **\n");
+	if (s) {
+		printf("lispe: %s\n", s);
+	}
 	longjmp(buf, 1);
 }
 
@@ -275,8 +279,9 @@ static SEXPR set(SEXPR sexpr, SEXPR a)
 	push2(sexpr, a);
 	if (!p_nullp(sexpr)) {
 		var = p_car(sexpr);
-		if (!p_symbolp(var))
-			throw_err();
+		if (!p_symbolp(var)) {
+			throw_err("set! on something that is not a symbol");
+		}
 
 		sexpr = p_cdr(sexpr);
 		val = p_eval(p_car(sexpr), a);
@@ -301,8 +306,9 @@ static SEXPR define(SEXPR sexpr, SEXPR a)
 		is_fn = 1;
 	}
 
-	if (!p_symbolp(var))
-		throw_err();
+	if (!p_symbolp(var)) {
+		throw_err("define requires a variable name to define");
+	}
 
 	if (is_fn) {
 		val = lambda(p_cons(args, p_cdr(sexpr)), a);
@@ -325,8 +331,10 @@ static SEXPR arith(SEXPR e, SEXPR a, float n, float (*fun)(float, float))
 {
 	e = p_evlis(e, a);
 	while (!p_nullp(e)) {
-		if (!p_numberp(p_car(e)))
-			throw_err();
+		if (!p_numberp(p_car(e))) {
+			throw_err("performing arithmetic on something that"
+				  "is not a number");
+		}
 		n = fun(n, sexpr_number(p_car(e)));
 		e = p_cdr(e);
 	}
@@ -338,14 +346,16 @@ static SEXPR logic(SEXPR e, SEXPR a, int (*fun)(float, float))
 	float n, n2;
 
 	e = p_evlis(e, a);
-	if (p_nullp(e) || !p_numberp(p_car(e)))
-		throw_err();
+	if (p_nullp(e) || !p_numberp(p_car(e))) {
+		throw_err("wrong type for logic operation");
+	}
 
 	n = sexpr_number(p_car(e));
 	e = p_cdr(e);
 	while (!p_nullp(e)) {
-		if (!p_numberp(p_car(e)))
-			throw_err();
+		if (!p_numberp(p_car(e))) {
+			throw_err("wrong type for logic operation");
+		}
 		n2 = sexpr_number(p_car(e));
 		if (!fun(n, n2))
 			return SEXPR_FALSE;
@@ -397,7 +407,7 @@ static SEXPR difference(SEXPR e, SEXPR a)
 
 	e = p_evlis(e, a);
 	if (p_nullp(e) || !p_numberp(p_car(e)))
-		throw_err();
+		throw_err("operator - requires at least one argument");
 
 	n = sexpr_number(p_car(e));
 	if (p_nullp(p_cdr(e)))
@@ -430,7 +440,7 @@ static SEXPR quotient(SEXPR e, SEXPR a)
 
 	e = p_evlis(e, a);
 	if (p_nullp(e) || !p_numberp(p_car(e)))
-		throw_err();
+		throw_err("not enough arguments for operator /");
 
 	n = sexpr_number(p_car(e));
 	if (p_nullp(p_cdr(e)))
@@ -540,7 +550,7 @@ static SEXPR body(SEXPR e, SEXPR a)
 	case SEXPR_BUILTIN_SPECIAL:
 		return SEXPR_NIL;
 	default:
-		throw_err();
+		throw_err("no body for object");
 		return SEXPR_NIL;
 	}
 }
@@ -599,7 +609,7 @@ int main(int argc, char* argv[])
 				p_println(p_eval(e, s_env));
 			}
 		} else {
-			printf("lispe: ** error **\n");
+			printf("lispe: ** stop **\n");
 			clear_stack();
 		}
 		assert(stack_empty());

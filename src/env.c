@@ -73,7 +73,7 @@ SEXPR set_variable(SEXPR var, SEXPR val, SEXPR env)
 
 	bind = lookup_variable(var, env);
 	if (p_nullp(bind)) {
-		throw_err();
+		throw_err("set! on an undefined variable");
 	}
 
 	p_setcdr(bind, val);
