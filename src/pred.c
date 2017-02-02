@@ -179,7 +179,6 @@ void p_evcon(void)
  */
 static void p_evseq(int eval_last)
 {
-	p_println(s_unev);
 	while (!p_nullp(s_unev)) {
 		s_expr = p_car(s_unev);
 		/* last expression not evaluated: tail recursion */
@@ -325,8 +324,6 @@ static void p_evargs(void)
 		s_args = s_unev;
 	}
 
-	printf("evargs\n");
-
 	node = s_args;
 	for (;;) {
 		push(s_args);
@@ -348,8 +345,6 @@ static void p_evargs(void)
 			s_unev = p_cdr(s_unev);
 		}
 	}
-
-	printf("evargs exit\n");
 }
 
 /* in: expr, env.
@@ -420,11 +415,9 @@ again:  switch (sexpr_type(s_expr)) {
 			 * For non special forms we evaluate the arguments
 			 * only if there is any.
 			 */
-			p_println(s_unev);
 			push(s_proc);
 			p_evargs();
 			s_proc = pop();
-			p_println(s_args);
 		}
 		tailrec = p_apply();
 		if (tailrec) {

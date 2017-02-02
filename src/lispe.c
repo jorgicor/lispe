@@ -264,7 +264,6 @@ static void set(void)
 {
 	SEXPR var;
 
-	p_println(s_args);
 	if (!p_nullp(s_args)) {
 		var = p_car(s_args);
 		if (!p_symbolp(var)) {
@@ -462,7 +461,6 @@ static float plus_fun(float a, float b)
 
 static void plus(void)
 {
-	printf("plus");
 	arith(0, plus_fun);
 }
 
@@ -606,6 +604,8 @@ static void apply(void)
 
 	s_proc = p_car(s_args);
 	s_args = p_car(p_cdr(s_args));
+	p_println(s_proc);
+	p_println(s_args);
 	push(s_env);
 	tailrec = p_apply(); 
 	s_env = pop();
