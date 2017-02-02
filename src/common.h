@@ -14,12 +14,10 @@ int p_eqvp(SEXPR x, SEXPR y);
 int p_equalp(SEXPR x, SEXPR y);
 SEXPR p_setcar(SEXPR e, SEXPR val);
 SEXPR p_setcdr(SEXPR e, SEXPR val);
-SEXPR p_assoc(SEXPR x, SEXPR a);
-SEXPR p_evcon(SEXPR c, SEXPR a);
-SEXPR p_evlis(SEXPR m, SEXPR a);
-SEXPR p_eval(SEXPR e, SEXPR a);
-SEXPR p_add(SEXPR var, SEXPR val, SEXPR a);
-SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2);
+void p_evcon(void);
+void p_evlis(void);
+void p_eval(void);
+int p_apply(void);
 
 void p_print(SEXPR sexpr);
 void p_println(SEXPR sexpr);
@@ -27,11 +25,14 @@ void p_println_env(SEXPR env);
 
 /* gcbase.c */
 
+extern SEXPR s_topenv;
 extern SEXPR s_env;
-// extern SEXPR s_true_atom;
-// extern SEXPR s_false_atom;
 extern SEXPR s_quote_atom;
-extern SEXPR s_rest_atom;
+extern SEXPR s_expr;
+extern SEXPR s_val;
+extern SEXPR s_proc;
+extern SEXPR s_args;
+extern SEXPR s_unev;
 
 int pop_free_cell(void);
 SEXPR p_cons(SEXPR first, SEXPR rest);
@@ -40,7 +41,7 @@ void clear_stack(void);
 SEXPR push(SEXPR e);
 void push2(SEXPR e1, SEXPR e2);
 void push3(SEXPR e1, SEXPR e2, SEXPR e3);
-void pop(void);
+SEXPR pop(void);
 void popn(int n);
 int stack_empty(void);
 
@@ -74,8 +75,8 @@ void extend_environment(SEXPR env, SEXPR params, SEXPR args);
 /* lispe.c */
 
 void throw_err(const char *s);
-SEXPR apply_builtin_function(int i, SEXPR args, SEXPR a);
-SEXPR apply_builtin_special(int i, SEXPR args, SEXPR a);
+void apply_builtin_function(int i);
+void apply_builtin_special(int i);
 const char *builtin_function_name(int i);
 const char *builtin_special_name(int i);
 int builtin_special_tailrec(int i);
