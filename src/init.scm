@@ -72,3 +72,7 @@
 		      (map-lists fn (map0 cdr pp))))))
   (map-lists fn (cons first rest)))
 
+(define (abs n)
+  (cond ((< n 0) (- n))
+	(else n)))
+
