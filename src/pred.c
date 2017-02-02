@@ -177,13 +177,13 @@ void p_evcon(void)
 
 /* in: unev, env.
  */
-static void p_evseq(void)
+static void p_evseq(int eval_last)
 {
 	p_println(s_unev);
-	for (;;) {
+	while (!p_nullp(s_unev)) {
 		s_expr = p_car(s_unev);
 		/* last expression not evaluated: tail recursion */
-		if (p_nullp(p_cdr(s_unev))) {
+		if (!eval_last && p_nullp(p_cdr(s_unev))) {
 			s_val = s_expr;
 			return;
 		}
@@ -229,7 +229,6 @@ int p_apply(void)
 		return tailrec;
 
 	case SEXPR_FUNCTION:
-	case SEXPR_SPECIAL:
 		/* A function (lambda) creates a new environment with
 		 * its saved environment as parent.
 		 */
@@ -245,7 +244,30 @@ int p_apply(void)
 		extend_environment(s_env, params, s_args);
 		body = cell_cdr(celli);
 		s_unev = body;
-		p_evseq();
+		p_evseq(0);
+		return 1;
+
+	case SEXPR_SPECIAL:
+		/* A special creates a new environment with
+		 * its saved environment as parent but will return
+		 * the expression to the previous environment.
+		 */
+		celli = sexpr_index(s_proc);
+		params_n_body = cell_car(celli);
+		push(s_env);
+		s_env = make_environment(cell_cdr(celli));
+
+		/* pair parameters with their arguments and extend the
+		 * environment.
+		 */
+		celli = sexpr_index(params_n_body);
+		params = cell_car(celli);
+		extend_environment(s_env, params, s_args);
+		body = cell_cdr(celli);
+		s_unev = body;
+		p_evseq(1);
+		/* get the last environment */
+		s_env = pop();
 		return 1;
 
 	default:
