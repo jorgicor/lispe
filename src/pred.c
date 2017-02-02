@@ -17,7 +17,7 @@ void p_println_env(SEXPR env);
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 1;
+static int s_debug = 0;
 
 int p_nullp(SEXPR e)
 {

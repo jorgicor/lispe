@@ -604,11 +604,7 @@ static void apply(void)
 
 	s_proc = p_car(s_args);
 	s_args = p_car(p_cdr(s_args));
-	p_println(s_proc);
-	p_println(s_args);
-	push(s_env);
 	tailrec = p_apply(); 
-	s_env = pop();
 	if (tailrec) {
 		s_expr = s_val;
 		p_eval();
