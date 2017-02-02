@@ -62,7 +62,6 @@ int p_eqp(SEXPR x, SEXPR y)
 	return sexpr_eq(x, y);
 }
 
-/* Right now, for us eq? is the same as eqv? . */
 int p_eqvp(SEXPR x, SEXPR y)
 {
 	if (p_numberp(x) && p_numberp(y))
@@ -109,8 +108,13 @@ SEXPR p_setcdr(SEXPR e, SEXPR val)
 	return val;
 }
 
-// in: args, env
-// out: val
+/*
+ * Evaluate every expression in s_args.
+ * s_val will be the value of the last evaluated expression.
+ *
+ * in: args, env
+ * out: val
+ */
 void p_evlis(void)
 {
 	SEXPR node, node2;
@@ -128,11 +132,9 @@ void p_evlis(void)
 	s_env = pop();
 
 	s_val = push(p_cons(s_val, SEXPR_NIL));
-	push(s_val);
 	node = s_val;
 	s_args = p_cdr(s_args);
 	while (!p_nullp(s_args)) {
-
 		push(s_env);
 		push(s_args);
 		s_expr = p_car(s_args);
@@ -148,7 +150,11 @@ void p_evlis(void)
 	s_val = pop();
 }
 
-/* in: args, env
+/* 
+ * Evaluates cond. s_args is the cond expression.
+ * s_val will be the unevaluted expression of the first true clause.
+ *
+ * in: args, env
  * out: val
  */
 void p_evcon(void)
@@ -175,14 +181,19 @@ void p_evcon(void)
 	throw_err("cond: no condition was true");
 }
 
-/* in: unev, env.
+/* Evaluates a list of expressions in s_unev. If !eval_last, the last
+ * expression is returned in s_val but not evaluated. If eval_last, all
+ * expressions are evaluated and the result of the last is s_val.
+ *
+ * in: unev, env.
+ * out: val.
  */
 static void p_evseq(int eval_last)
 {
 	while (!p_nullp(s_unev)) {
 		s_expr = p_car(s_unev);
-		/* last expression not evaluated: tail recursion */
 		if (!eval_last && p_nullp(p_cdr(s_unev))) {
+			/* Don't eval the last expression: tail recursion. */
 			s_val = s_expr;
 			return;
 		}
@@ -197,7 +208,7 @@ static void p_evseq(int eval_last)
 
 /* in: proc, args.
  * Exits: val.
- * Returns 1 if tail recursion is in effect.
+ * Return 1 if tail recursion is in effect.
  *
  * TODO: we don't have s_env now probably, so we cannot implement dynamic
  * binding right now... (?)
@@ -228,40 +239,44 @@ int p_apply(void)
 		return tailrec;
 
 	case SEXPR_FUNCTION:
-		/* A function (lambda) creates a new environment with
-		 * its saved environment as parent.
+		/* 
+		 * A lambda creates a new environment with its saved
+		 * environment as parent.
 		 */
 		celli = sexpr_index(s_proc);
 		params_n_body = cell_car(celli);
 		s_env = make_environment(cell_cdr(celli));
-
-		/* pair parameters with their arguments and extend the
+		/* 
+		 * Pair parameters with their arguments and extend the
 		 * environment.
 		 */
 		celli = sexpr_index(params_n_body);
 		params = cell_car(celli);
-		extend_environment(s_env, params, s_args);
+		s_unev = params;
+		extend_environment();
 		body = cell_cdr(celli);
 		s_unev = body;
 		p_evseq(0);
 		return 1;
 
 	case SEXPR_SPECIAL:
-		/* A special creates a new environment with
-		 * its saved environment as parent but will return
-		 * the expression to the previous environment.
+		/*
+		 * A special creates a new environment with its saved
+		 * environment as parent but will return the expression to the
+		 * previous environment.
 		 */
 		celli = sexpr_index(s_proc);
 		params_n_body = cell_car(celli);
 		push(s_env);
 		s_env = make_environment(cell_cdr(celli));
-
-		/* pair parameters with their arguments and extend the
+		/*
+		 * Pair parameters with their arguments and extend the
 		 * environment.
 		 */
 		celli = sexpr_index(params_n_body);
 		params = cell_car(celli);
-		extend_environment(s_env, params, s_args);
+		s_unev = params;
+		extend_environment();
 		body = cell_cdr(celli);
 		s_unev = body;
 		p_evseq(1);
@@ -311,7 +326,8 @@ static SEXPR p_adjoin(SEXPR p, SEXPR *node, SEXPR e)
 	}
 }
 			
-/* in: unev, env, args (NIL).
+/* Evaluates the elements of s_unev and builds the list s_args.
+ * in: unev, env, args (NIL).
  * out: args.
  */
 static void p_evargs(void)
@@ -353,7 +369,7 @@ static void p_evargs(void)
 void p_eval(void)
 {
 	int t, tailrec;
-	SEXPR val;
+	SEXPR bind;
 
 	s_evalc++;
 #if 0
@@ -378,12 +394,12 @@ again:  switch (sexpr_type(s_expr)) {
 	case SEXPR_SYMBOL:
 		// printf("lookup: ");
 		// p_println(e);
-		val = lookup_variable(s_expr, s_env);
-		if (p_nullp(val)) {
+		bind = lookup_variable(s_expr, s_env);
+		if (p_nullp(bind)) {
 			throw_err("variable not bound");
 		}
 		s_evalc--;
-		s_val = p_cdr(val);
+		s_val = p_cdr(bind);
 		return;
 
 	case SEXPR_CONS:
@@ -506,14 +522,16 @@ void p_println_env(SEXPR env)
 
 	any = 0;
 	while (!p_nullp(env)) {
-		if (p_nullp(p_car(env)))
+		if (p_nullp(p_car(env))) {
 			break;
+		}
 		any = 1;
 		p_println(p_cdr(env));
 		env = p_car(env);
 	}
-	if (!any)
+	if (!any) {
 		printf("\n");
+	}
 }
 
 void p_println(SEXPR sexpr)

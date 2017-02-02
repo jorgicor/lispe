@@ -68,9 +68,9 @@ SEXPR get_sexpr(struct parser *p, int *errorc);
 
 SEXPR make_environment(SEXPR parent);
 SEXPR lookup_variable(SEXPR var, SEXPR env);
-SEXPR define_variable(SEXPR var, SEXPR val, SEXPR env);
+void define_variable(void);
 SEXPR set_variable(SEXPR var, SEXPR val, SEXPR env);
-void extend_environment(SEXPR env, SEXPR params, SEXPR args);
+void extend_environment(void);
 
 /* lispe.c */
 

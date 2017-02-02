@@ -46,7 +46,6 @@ static void greaterp(void);
 static void greater_eqp(void);
 static void less_eqp(void);
 static void equal_numbersp(void);
-static void list(void);
 static void eval(void);
 static void apply(void);
 static void gc(void);
@@ -107,7 +106,6 @@ static struct builtin builtin_specials[] = {
 	{ "body", &body, 0 },
 	{ "cond", &cond, 1 },
 	{ "lambda", &lambda, 0 },
-	{ "list", &list, 0 },
 	{ "quote", &quote, 0 },
 	{ "set!", &set, 0 },
 	{ "define", &define, 0 },
@@ -116,12 +114,10 @@ static struct builtin builtin_specials[] = {
 
 static void install_builtin(const char *name, SEXPR val)
 {
-	SEXPR var;
-
-	push(val);
-	var = make_symbol(name, strlen(name));
-	pop();
-	define_variable(var, val, s_topenv);
+	s_val = val;
+	s_expr = make_symbol(name, strlen(name));
+	s_env = s_topenv;
+	define_variable();
 }
 
 static void install_builtin_functions(void)
@@ -249,12 +245,6 @@ static void cond(void)
 	p_evcon();
 }
 
-/* TODO: make builtin function so the arguments eval automatically? */
-static void list(void)
-{
-	p_evlis();
-}
-
 static void quit(void)
 {
 	exit(EXIT_SUCCESS);
@@ -297,20 +287,20 @@ static void define(void)
 		throw_err("define requires a variable name to define");
 	}
 
-	// with this we protect var and val
-	push(s_args);
+	s_expr = var;
 	if (is_fn) {
 		s_args = p_cons(args, p_cdr(s_args));
 		lambda();
 	} else {
 		push(s_env);
+		push(s_expr);
 		s_expr = p_car(p_cdr(s_args));
 		p_eval();
+		s_expr = pop();
 		s_env = pop();
 	}
-	pop();
 
-	define_variable(var, s_val, s_env);
+	define_variable();
 }
 
 static void cons(void)
@@ -565,13 +555,11 @@ static void lambda(void)
 	s_val = make_function(sexpr_index(p_cons(s_args, s_env)));
 }
 
-/* TODO: change for symbol-function and print like (lambda (x) (nc ...)) */
 static void body(void)
 {
 	int celli;
 	SEXPR e;
 
-	/* TODO: admit any number of arguments */
 	p_evlis();
 	e = p_car(s_val);
 	switch (sexpr_type(e)) {

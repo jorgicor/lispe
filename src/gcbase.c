@@ -22,7 +22,7 @@ SEXPR s_proc;
 SEXPR s_args;
 SEXPR s_unev;
 
-/* hidden environment, used to not gc quote, &rest, etc. */
+/* hidden environment, used to not gc quote, etc. */
 static SEXPR s_hidenv;
 
 /* current computation stack */
@@ -226,7 +226,9 @@ void p_gc(void)
 static void install_symbols(void)
 {
 	s_quote_atom = make_symbol("quote", 5);
-	define_variable(s_quote_atom, s_quote_atom, s_hidenv);
+	s_expr = s_val = s_quote_atom;
+	s_env = s_hidenv;
+	define_variable();
 }
 
 /* Init this module, in particular the SEXPR_NIL atom and the free list of cells.
