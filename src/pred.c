@@ -372,10 +372,11 @@ void p_eval(void)
 	SEXPR bind;
 
 	s_evalc++;
-#if 0
-	printf("eval stack %d\n", s_evalc);
-	// p_println(a);
-#endif
+
+	if (s_debug) {
+		printf("eval stack %d\n", s_evalc);
+		// p_println(a);
+	}
 
 again:  switch (sexpr_type(s_expr)) {
 	case SEXPR_NIL:
@@ -444,6 +445,7 @@ again:  switch (sexpr_type(s_expr)) {
 			printf("r: ");
 			p_println(s_val);
 		}
+		s_evalc--;
 		return;
 
 	default:

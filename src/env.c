@@ -146,6 +146,7 @@ void extend_environment(void)
 		 * The procedure takes n arguments, combined on a list in x.
 		 */
 		s_expr = s_unev;
+		s_val = s_args;
 		define_variable();
 		return;
 	}

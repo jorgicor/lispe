@@ -19,6 +19,8 @@
 #include <setjmp.h>
 #include <tgmath.h>
 
+static void delay(void);
+static void cons_stream(void);
 static void pairp(void);
 static void numberp(void);
 static void symbolp(void);
@@ -110,6 +112,8 @@ static struct builtin builtin_specials[] = {
 	{ "set!", &set, 0 },
 	{ "define", &define, 0 },
 	{ "special", &special, 0 },
+	// { "delay", &delay, 0 },
+	// { "cons-stream", &cons_stream, 0 },
 };
 
 static void install_builtin(const char *name, SEXPR val)
@@ -579,6 +583,30 @@ static void body(void)
 		throw_err("no body for object");
 		s_val = SEXPR_NIL;
 	}
+}
+
+static void delay(void)
+{
+	s_args = p_cons(SEXPR_NIL, s_args);
+	lambda();
+}
+
+static void cons_stream(void)
+{
+	SEXPR thecdr;
+
+	push(s_args);
+	push(s_env);
+	s_expr = p_car(s_args);
+	p_eval();
+	s_env = pop();
+	s_args = pop();
+	push(s_val);
+	s_args = p_cdr(s_args);
+	delay();
+	thecdr = s_val;
+	s_val = pop();
+	s_val = p_cons(s_val, thecdr); 
 }
 
 static void eval(void)

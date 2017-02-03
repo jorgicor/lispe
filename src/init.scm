@@ -79,3 +79,55 @@
 (define (fact n)
   (cond ((= n 0) 1)
 	(else (* n (fact (- n 1))))))
+
+(define delay (special (expr)
+  (cons 'lambda (cons '() expr))))
+
+(define (force delayed-expr)
+  (delayed-expr))
+
+(define cons-stream (special (a b)
+  (list 'cons a (list 'lambda '() b))))
+
+(define the-empty-stream '())
+(define stream-null? null?)
+
+(define (stream-car stream) (car stream))
+(define (stream-cdr stream) (force (cdr stream)))
+
+(define (stream-ref s n)
+  (cond ((= n 0) (stream-car s))
+	(else (stream-ref (stream-cdr s) (- n 1)))))
+
+(define (stream-map proc . ss)
+  (cond ((stream-null? (car ss)) the-empty-stream)
+	(else (cons-stream (apply proc (map stream-car ss))
+			   (apply stream-map
+				  (cons proc (map stream-cdr ss)))))))
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream) the-empty-stream)
+	((pred (stream-car stream))
+	 (cons-stream (stream-car stream)
+		      (stream-filter pred (stream-cdr stream))))
+	(else (stream-filter pred (stream-cdr stream)))))
+
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
+
+(define ones (cons-stream 1 ones))
+
+(define integers (cons-stream 1 (add-streams ones integers)))
+
+(define (stream-interval low hi)
+  (cond ((> low hi) the-empty-stream)
+	(else (cons-stream low (stream-interval (+ low 1) hi)))))
+
+(define (is-sqrt n)
+  (define (is-sqrt-iter i n)
+    (define mul (* i i))
+    (cond ((> mul n) #f) 
+	  ((= mul n) #t)
+	  (else (is-sqrt-iter (+ i 1) n))))
+  (is-sqrt-iter 1 n))
+
