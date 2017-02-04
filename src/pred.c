@@ -17,7 +17,7 @@ void p_println_env(SEXPR env);
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 0;
+static int s_debug = 1;
 
 int p_nullp(SEXPR e)
 {
@@ -57,17 +57,11 @@ SEXPR p_cdr(SEXPR e)
 	return cell_cdr(sexpr_index(e));
 }
 
-SEXPR p_add(SEXPR var, SEXPR val, SEXPR a)
-{
-	return p_cons(p_cons(var, val), a);
-}
-
 int p_eqp(SEXPR x, SEXPR y)
 {
 	return sexpr_eq(x, y);
 }
 
-/* Right now, for us eq? is the same as eqv? . */
 int p_eqvp(SEXPR x, SEXPR y)
 {
 	if (p_numberp(x) && p_numberp(y))
@@ -114,205 +108,156 @@ SEXPR p_setcdr(SEXPR e, SEXPR val)
 	return val;
 }
 
-/* 'a is an association list ((A . B) (C . D) ... ).
- * Return the first pair whose 'car is 'x.
+/*
+ * Evaluate every expression in s_args.
+ * s_val will be the value of the last evaluated expression.
+ *
+ * in: args, env
+ * out: val
  */
-SEXPR p_assoc(SEXPR x, SEXPR a)
+void p_evlis(void)
 {
-	for (;;) {
-		if (p_nullp(a)) {
-			return SEXPR_NIL;
-		} else if (p_equalp(p_car(p_car(a)), x)) { // TODO: -> p_eqp?
-			return p_car(a);
-		} else {
-			a = p_cdr(a);
-		}
-	}
-}
-
-/* eval each list member.  */
-SEXPR p_evlis(SEXPR m, SEXPR a)
-{
-	SEXPR head, node, node2;
+	SEXPR node, node2;
 	
-	if (p_nullp(m))
-		return m;
+	if (p_nullp(s_args)) {
+		s_val = s_args;
+		return;
+	}
 
-	push2(m, a);
-	head = push(p_cons(p_eval(p_car(m), a), SEXPR_NIL));
-	node = head;
-	m = p_cdr(m);
-	while (!p_nullp(m)) {
-		node2 = p_cons(p_eval(p_car(m), a), SEXPR_NIL);
+	push(s_env);
+	push(s_args);
+	s_expr = p_car(s_args);
+	p_eval();
+	s_args = pop();
+	s_env = pop();
+
+	s_val = push(p_cons(s_val, SEXPR_NIL));
+	node = s_val;
+	s_args = p_cdr(s_args);
+	while (!p_nullp(s_args)) {
+		push(s_env);
+		push(s_args);
+		s_expr = p_car(s_args);
+		p_eval();
+		s_args = pop();
+		s_env = pop();
+
+		node2 = p_cons(s_val, SEXPR_NIL);
 		p_setcdr(node, node2);
 		node = node2;
-		m = p_cdr(m);
+		s_args = p_cdr(s_args);
 	}
-	popn(3);
-	return head;
+	s_val = pop();
 }
 
-/* eval COND */
-SEXPR p_evcon(SEXPR c, SEXPR a)
-{
-	for (;;) {
-		if (p_eqp(p_eval(p_car(p_car(c)), a), SEXPR_TRUE)) {
-			return p_eval(p_car(p_cdr(p_car(c))), a);
-		} else {
-			c = p_cdr(c);
-		}
-	}
-}
-
-/* If tailrec != NULL, we will act tail recursive, that is, the last
- * expression in the function to apply will be returned unevaluated.
- * In that case, *tailrec will be set to 1 or 0.
- * If 1, it means that the SEXPR returned is the last expression of a
- * sequence and has not been evaluated. Eval can evaluate it and 'env2
- * will be the environment in which to evaluate.
- * This is to implement tail recursion, until a better idea.
- * If 0, the return value is already the final one, eval does not need to
- * evaluate anything.
+/* Evaluates a list of expressions which are in s_unev. If !eval_last, the last
+ * expression is returned in s_val but not evaluated. If eval_last, all
+ * expressions are evaluated and the result of the last is s_val.
+ *
+ * in: unev, env.
+ * out: val.
  */
-SEXPR p_apply(SEXPR fn, SEXPR x, SEXPR env, int *tailrec, SEXPR *env2)
+void p_evseq(int eval_last)
 {
-	SEXPR e1, r, env_new;
+	while (!p_nullp(s_unev)) {
+		s_expr = p_car(s_unev);
+		if (!eval_last && p_nullp(p_cdr(s_unev))) {
+			/* Don't eval the last expression: tail recursion. */
+			s_val = s_expr;
+			return;
+		}
+		push(s_unev);
+		push(s_env);
+		p_eval();
+		s_env = pop();
+		s_unev = pop();
+		s_unev = p_cdr(s_unev);
+	}
+}
+
+/* in: proc, args.
+ * Exits: val.
+ * Will set s_tailrec if tail recursion should be made.
+ *
+ * TODO: we don't have s_env now probably, so we cannot implement dynamic
+ * binding right now... (?)
+ */
+void p_apply(void)
+{
+	SEXPR params, body, params_n_body;
 	int celli;
 
-#if 0
-	printf("apply fn: ");
-	println(fn);
-	printf("x: ");
-	println(x);
-	printf("a: ");
-	println(a);
-#endif
-
-	r = SEXPR_NIL;
-	if (tailrec) {
-		assert(env2);
-		*tailrec = 0;
+	if (s_debug) {
+		printf("apply fn: ");
+		p_println(s_proc);
+		printf("args: ");
+		p_println(s_args);
+		// printf("a: ");
+		// println(s_env);
 	}
 
-	push3(x, fn, env);
-	switch (sexpr_type(fn)) {
+	switch (sexpr_type(s_proc)) {
 	case SEXPR_BUILTIN_FUNCTION:
-		*tailrec = builtin_function_tailrec(sexpr_index(fn));
-		r = apply_builtin_function(sexpr_index(fn), x, env);
-		popn(3);
-		if (*tailrec) {
-			*env2 = env;
-		}
-		break;
+		s_tailrec = 0;
+		apply_builtin_function(sexpr_index(s_proc));
+		return;
+
 	case SEXPR_BUILTIN_SPECIAL:
-		*tailrec = builtin_special_tailrec(sexpr_index(fn));
-		r = apply_builtin_special(sexpr_index(fn), x, env);
-		popn(3);
-		if (*tailrec) {
-			*env2 = env;
-		}
-		break;
-	case SEXPR_DYN_FUNCTION:
-		celli = sexpr_index(fn);
-		/* make a new environment with the current one as parent */
-		env = push(make_environment(env));
-		/* pair parameters with their arguments and extend the
-		 * current environment. */
-		extend_environment(env, cell_car(celli), x);
-		/* eval sequence except the last expression */
-		e1 = cell_cdr(celli);
-		while (!p_nullp(e1)) {
-			/* last expr */
-			if (p_nullp(p_cdr(e1))) {
-				break;
-			}
-			r = p_eval(p_car(e1), env);
-			e1 = p_cdr(e1);
-		}
-		if (!p_nullp(e1)) {
-			r = p_car(e1);
-		} else {
-			r = SEXPR_NIL;
-		}
-		popn(4);
-		if (!p_nullp(r)) {
-			if (tailrec == NULL) {
-				r = p_eval(r, env);
-			} else {
-				*tailrec = 1;
-				*env2 = env;
-			}
-		}
-		break;
+		s_tailrec = 0;
+		apply_builtin_special(sexpr_index(s_proc));
+		return;
+
 	case SEXPR_FUNCTION:
-		/* a function (lambda) creates a new environment with
-		 * its saved environment as parent.
+		/* 
+		 * A lambda creates a new environment with its saved
+		 * environment as parent.
 		 */
-		celli = sexpr_index(fn);
-		fn = cell_car(celli);
-		env = make_environment(cell_cdr(celli));
-		push2(fn, env);
-		celli = sexpr_index(fn);
-		/* pair parameters with their arguments and extend the
-		 * environment. */
-		extend_environment(env, cell_car(celli), x);
-		// printf("new env: ");
-		// p_println_env(env);
-		/* eval sequence except the last expression */
-		e1 = cell_cdr(celli);
-		while (!p_nullp(e1)) {
-			/* last expr */
-			if (p_nullp(p_cdr(e1))) {
-				break;
-			}
-			r = p_eval(p_car(e1), env);
-			e1 = p_cdr(e1);
-		}
-		if (!p_nullp(e1)) {
-			r = p_car(e1);
-		} else {
-			r = SEXPR_NIL;
-		}
-		popn(5);
-		if (!p_nullp(r)) {
-			if (tailrec == NULL) {
-				r = p_eval(r, env);
-			} else {
-				*tailrec = 1;
-				*env2 = env;
-			}
-		}
-		break;
+		celli = sexpr_index(s_proc);
+		params_n_body = cell_car(celli);
+		s_env = make_environment(cell_cdr(celli));
+		/* 
+		 * Pair parameters with their arguments and extend the
+		 * environment.
+		 */
+		celli = sexpr_index(params_n_body);
+		params = cell_car(celli);
+		s_unev = params;
+		extend_environment();
+		body = cell_cdr(celli);
+		s_unev = body;
+		p_evseq(0);
+		s_tailrec = 1;
+		return;
+
 	case SEXPR_SPECIAL:
-		celli = sexpr_index(fn);
-		fn = cell_car(celli);
-		env_new = make_environment(cell_cdr(celli));
-		push2(fn, env_new);
-		// printf("new env: ");
-		// p_println_env(env_new);
-		celli = sexpr_index(fn);
-		/* pair parameters with their arguments and append 'a. */
-		extend_environment(env_new, cell_car(celli), x);
-		/* eval sequence */
-		e1 = cell_cdr(celli);
-		while (!p_nullp(e1)) {
-			r = p_eval(p_car(e1), env_new);
-			e1 = p_cdr(e1);
-		}
-		popn(5);
-		/* The returned expression must be evaluated in the previous
-		 * environment. */
-		*tailrec = 1;
-		*env2 = env;
-		// printf("return expression to environment:\n");
-		// p_println(r); 
-		// p_println_env(env);
-		break;
+		/*
+		 * A special creates a new environment with its saved
+		 * environment as parent but will return the expression to the
+		 * previous environment.
+		 */
+		celli = sexpr_index(s_proc);
+		params_n_body = cell_car(celli);
+		push(s_env);
+		s_env = make_environment(cell_cdr(celli));
+		/*
+		 * Pair parameters with their arguments and extend the
+		 * environment.
+		 */
+		celli = sexpr_index(params_n_body);
+		params = cell_car(celli);
+		s_unev = params;
+		extend_environment();
+		body = cell_cdr(celli);
+		s_unev = body;
+		p_evseq(1);
+		/* get the last environment */
+		s_env = pop();
+		s_tailrec = 1;
+		return;
+
 	default:
 		throw_err("applying to a unknown object type");
 	}
-
-	return r;
 }
 
 static int s_evalc = 0;
@@ -332,18 +277,78 @@ static int listlen(SEXPR e)
 	return n;
 }
 
-SEXPR p_eval(SEXPR e, SEXPR env)
+/* Given the list p (possibly empty) and node pointing to the last pair
+ * of the list (undefined if p is empty), returns a new list with a new
+ * pair added to the end and node will point to that pair.
+ */
+static SEXPR p_adjoin(SEXPR p, SEXPR *node, SEXPR e)
 {
-	int tailrec, t;
-	SEXPR c, e1, env2;
+	SEXPR node2;
+
+	if (p_nullp(p)) {
+		*node = p_cons(e, SEXPR_NIL);
+		return *node;
+	} else {
+		node2 = p_cons(e, SEXPR_NIL);
+		p_setcdr(*node, node2);
+		*node = node2;
+		return p;
+	}
+}
+			
+/* Evaluates the elements of s_unev and builds the list s_args.
+ * in: unev, env, args (NIL).
+ * out: args.
+ */
+void p_evargs(void)
+{
+	SEXPR node;
+
+	assert(p_nullp(s_args));
+
+	if (p_nullp(s_unev)) {
+		s_args = s_unev;
+	}
+
+	node = s_args;
+	for (;;) {
+		push(s_args);
+		s_expr = p_car(s_unev);
+		if (p_nullp(p_cdr(s_unev))) {
+			/* last operand */
+			p_eval();
+			s_args = pop();
+			s_args = p_adjoin(s_args, &node, s_val);
+			break;
+		} else {
+			push(s_env);
+			push(s_unev);
+			p_eval();
+			s_unev = pop();
+			s_env = pop();
+			s_args = pop();
+			s_args = p_adjoin(s_args, &node, s_val);
+			s_unev = p_cdr(s_unev);
+		}
+	}
+}
+
+/* in: expr, env.
+ * out: val
+ */
+void p_eval(void)
+{
+	int t;
+	SEXPR bind;
 
 	s_evalc++;
-#if 0
-	printf("eval stack %d\n", s_evalc);
-	// p_println(a);
-#endif
 
-again:  switch (sexpr_type(e)) {
+	if (s_debug) {
+		printf("eval stack %d\n", s_evalc);
+		// p_println(a);
+	}
+
+again:  switch (sexpr_type(s_expr)) {
 	case SEXPR_NIL:
 	case SEXPR_TRUE:
 	case SEXPR_FALSE:
@@ -354,57 +359,67 @@ again:  switch (sexpr_type(e)) {
 	case SEXPR_SPECIAL:
 	case SEXPR_DYN_FUNCTION:
 		s_evalc--;
-		return e;
+		s_val = s_expr;
+		return;
+
 	case SEXPR_SYMBOL:
 		// printf("lookup: ");
 		// p_println(e);
-		c = lookup_variable(e, env);
-		if (p_nullp(c)) {
+		bind = lookup_variable(s_expr, s_env);
+		if (p_nullp(bind)) {
 			throw_err("variable not bound");
 		}
-		c = p_cdr(c);
 		s_evalc--;
-		return c;
+		s_val = p_cdr(bind);
+		return;
+
 	case SEXPR_CONS:
+		/* application */
 		if (s_debug) {
 			printf("eval: ");
-			p_println(e);
+			p_println(s_expr);
 			printf("env: ");
-			p_println_env(env);
+			p_println_env(s_env);
 		}
+
 		/* evaluate the operator */
-		push2(env, e);
-		c = p_eval(p_car(e), env);
-		t = sexpr_type(c);
-		switch (t) {
-		case SEXPR_BUILTIN_SPECIAL:
-		case SEXPR_SPECIAL:
-			/* special forms evaluate the arguments themselves */
-			popn(2);
-			c = p_apply(c, p_cdr(e), env, &tailrec, &env2);
-			break;
-		default:
-			/* evaluate the arguments */
-			push(c);
-			e1 = p_evlis(p_cdr(e), env);
-			popn(3);
-			c = p_apply(c, e1, env, &tailrec, &env2);
+		push(s_env);
+		s_unev = p_cdr(s_expr);
+		push(s_unev);
+		s_expr = p_car(s_expr);
+		p_eval();
+		s_proc = s_val;
+
+		/* evaluate arguments if needed and apply */
+		s_unev = pop();
+		s_env = pop();
+		s_args = SEXPR_NIL;
+		t = sexpr_type(s_proc);
+		if (t == SEXPR_BUILTIN_SPECIAL || t == SEXPR_SPECIAL) {
+			s_args = s_unev;
+		} else if (!p_nullp(s_unev)) {
+			/* 
+			 * For non special forms we evaluate the arguments
+			 * only if there is any.
+			 */
+			push(s_proc);
+			p_evargs();
+			s_proc = pop();
 		}
-		if (tailrec) {
-			e = c;
-			env = env2;
+		p_apply();
+		if (s_tailrec) {
+			s_expr = s_val;
 			goto again;
 		}
-		if(s_debug) {
+		if (s_debug) {
 			printf("r: ");
-			p_println(c);
+			p_println(s_val);
 		}
 		s_evalc--;
-		return c;
+		return;
 
 	default:
 		throw_err("unknown object to eval");
-		return SEXPR_NIL;
 	}
 }
 
@@ -479,14 +494,16 @@ void p_println_env(SEXPR env)
 
 	any = 0;
 	while (!p_nullp(env)) {
-		if (p_nullp(p_car(env)))
+		if (p_nullp(p_car(env))) {
 			break;
+		}
 		any = 1;
 		p_println(p_cdr(env));
 		env = p_car(env);
 	}
-	if (!any)
+	if (!any) {
 		printf("\n");
+	}
 }
 
 void p_println(SEXPR sexpr)

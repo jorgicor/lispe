@@ -14,9 +14,15 @@
 static SEXPR s_free_cells;
 
 /* global environment */
+SEXPR s_topenv;
 SEXPR s_env;
+SEXPR s_expr;
+SEXPR s_val;
+SEXPR s_proc;
+SEXPR s_args;
+SEXPR s_unev;
 
-/* hidden environment, used to not gc quote, &rest, etc. */
+/* hidden environment, used to not gc quote, etc. */
 static SEXPR s_hidenv;
 
 /* current computation stack */
@@ -30,9 +36,7 @@ static SEXPR s_protect_b;
 static SEXPR s_protect_c;
 
 /* Other precreated atoms */
-// SEXPR s_true_atom;
 SEXPR s_quote_atom;
-SEXPR s_rest_atom;
 
 /* Makes an sexpr form two sexprs. */
 SEXPR p_cons(SEXPR first, SEXPR rest)
@@ -75,6 +79,11 @@ int pop_free_cell(void)
  * push and pop to stack to protect from gc.
  *********************************************************/
 
+int stack_empty(void)
+{
+	return p_eqp(s_stack, SEXPR_NIL);
+}
+
 void clear_stack(void)
 {
 	s_stack = SEXPR_NIL;
@@ -83,6 +92,12 @@ void clear_stack(void)
 	s_protect_a = SEXPR_NIL;
 	s_protect_b = SEXPR_NIL;
 	s_protect_c = SEXPR_NIL;
+	s_env = SEXPR_NIL;
+	s_expr = SEXPR_NIL;
+	s_val = SEXPR_NIL;
+	s_args = SEXPR_NIL;
+	s_unev = SEXPR_NIL;
+	s_proc = SEXPR_NIL;
 }
 
 /* Protect expression form gc by pushin it to s_stack. Return e. */
@@ -116,10 +131,14 @@ void push3(SEXPR e1, SEXPR e2, SEXPR e3)
 }
 
 /* Pop last expression from stack. */
-void pop(void)
+SEXPR pop(void)
 {
-	assert(!p_nullp(s_stack));
+	SEXPR e;
+
+	assert(!stack_empty());
+	e = p_car(s_stack);
 	s_stack = p_cdr(s_stack);
+	return e;
 }
 
 void popn(int n)
@@ -128,11 +147,6 @@ void popn(int n)
 	while (n--) {
 		pop();
 	}
-}
-
-int stack_empty(void)
-{
-	return p_eqp(s_stack, SEXPR_NIL);
 }
 
 /* Marks an expression and subexpressions. */
@@ -166,9 +180,15 @@ void p_gc(void)
 	int i, used;
 
 	/* Mark used. */
-	gc_mark(s_hidenv);
+	gc_mark(s_topenv);
 	gc_mark(s_env);
+	gc_mark(s_expr);
+	gc_mark(s_val);
+	gc_mark(s_proc);
+	gc_mark(s_args);
+	gc_mark(s_unev);
 	gc_mark(s_stack);
+	gc_mark(s_hidenv);
 	gc_mark(s_cons_car);
 	gc_mark(s_cons_cdr);
 	gc_mark(s_protect_a);
@@ -205,19 +225,10 @@ void p_gc(void)
 
 static void install_symbols(void)
 {
-	/*
-	s_false_atom = make_symbol("#f", 1);
-	define_variable(s_false_atom, s_false_atom, s_env);
-
-	s_true_atom = make_symbol("#t", 1);
-	define_variable(s_true_atom, s_true_atom, s_env);
-	*/
-
 	s_quote_atom = make_symbol("quote", 5);
-	define_variable(s_quote_atom, s_quote_atom, s_hidenv);
-
-	s_rest_atom = make_symbol("&rest", 5);
-	define_variable(s_rest_atom, s_rest_atom, s_hidenv);
+	s_expr = s_val = s_quote_atom;
+	s_env = s_hidenv;
+	define_variable();
 }
 
 /* Init this module, in particular the SEXPR_NIL atom and the free list of cells.
@@ -237,8 +248,14 @@ void gcbase_init(void)
 	}
 	s_free_cells = make_cons(0);
 
-	s_env = make_environment(SEXPR_NIL);
+	s_topenv = make_environment(SEXPR_NIL);
 	s_hidenv = make_environment(SEXPR_NIL);
+	s_env = SEXPR_NIL;
+	s_expr = SEXPR_NIL;
+	s_val = SEXPR_NIL;
+	s_proc = SEXPR_NIL;
+	s_args = SEXPR_NIL;
+	s_unev = SEXPR_NIL;
 	s_stack = SEXPR_NIL;
 	s_cons_car = SEXPR_NIL;
 	s_cons_cdr = SEXPR_NIL;

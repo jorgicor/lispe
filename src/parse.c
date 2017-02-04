@@ -111,13 +111,13 @@ error:	*iserror = 1;
 
 static SEXPR parse_sexpr(struct parser *p, int *errorc);
 
-static SEXPR parse_list(struct parser *p, int *errorc)
+static SEXPR parse_list(struct parser *p, int closetok, int *errorc)
 {
 	struct token *tok;
 	SEXPR car, cdr;
 
 	tok = peek_token(p->tokenizer);
-	if (tok->type == ')') {
+	if (tok->type == closetok) {
 		return SEXPR_NIL;
 	}
 
@@ -130,7 +130,7 @@ static SEXPR parse_list(struct parser *p, int *errorc)
 		pop_token(p->tokenizer);
 		cdr = parse_sexpr(p, errorc);
 	} else {
-		cdr = parse_list(p, errorc);
+		cdr = parse_list(p, closetok, errorc);
 	}
 	pop();
 
@@ -168,6 +168,7 @@ static SEXPR pop_n_ret(struct parser *p, SEXPR e)
 static SEXPR parse_sexpr(struct parser *p, int *errorc)
 {
 	struct token *tok;
+	int closetok;
 	SEXPR sexpr;
 
 	tok = peek_token(p->tokenizer);
@@ -188,15 +189,16 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 	} else if (tok->type == '\'') {
 		pop_token(p->tokenizer);
 		return parse_quote(p, errorc);
-	} else if (tok->type == '(') {
+	} else if (tok->type == '(' || tok->type == '[') {
+		closetok = (tok->type == '(') ? ')' : ']';
 		p->sp++;
 		pop_token(p->tokenizer);
-		sexpr = parse_list(p, errorc);
+		sexpr = parse_list(p, closetok, errorc);
 		if (*errorc != ERRORC_OK) {
 			goto error;
 		}
 		tok = peek_token(p->tokenizer);
-		if (tok->type != ')') {
+		if (tok->type != closetok) {
 			goto error;
 		}
 		p->sp--;

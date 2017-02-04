@@ -65,9 +65,6 @@ enum {
 #define make_function(lambda_n_alist_celli) \
 	(SEXPR_FUNCTION | (lambda_n_alist_celli))
 
-#define make_dyn_function(args_n_body_celli) \
-	(SEXPR_DYN_FUNCTION | (args_n_body_celli))
-
 #define make_special(args_n_body_celli) \
 	(SEXPR_SPECIAL | (args_n_body_celli))
 
