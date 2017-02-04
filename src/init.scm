@@ -30,6 +30,17 @@
 (define (cdar p) (cdr (car p)))
 (define (cddr p) (cdr (cdr p)))
 
+(define (append first . rest)
+  (define (append-acc head node cur r)
+    (cond ((null? cur)
+	   (cond ((null? r) head)
+		 ((null? (cdr r)) (set-cdr! node (car r)) head)
+		 (else (append-acc head node (car r) (cdr r)))))
+	  (else (set-cdr! node (cons (car cur) '()))
+		(append-acc head (cdr node) (cdr cur) r))))
+  (let ((tmp-node (cons '() '())))
+    (cdr (append-acc tmp-node tmp-node first rest))))
+
 (define (max first . rest)
   (define (maxn m p)
     (cond ((null? p) m)
@@ -81,13 +92,13 @@
 	(else (* n (fact (- n 1))))))
 
 (define delay (special (expr)
-  (cons 'lambda (cons '() expr))))
+  (list 'lambda '() expr)))
 
 (define (force delayed-expr)
   (delayed-expr))
 
 (define cons-stream (special (a b)
-  (list 'cons a (list 'lambda '() b))))
+  (list 'cons a (list 'delay b))))
 
 (define the-empty-stream '())
 (define stream-null? null?)
@@ -130,4 +141,18 @@
 	  ((= mul n) #t)
 	  (else (is-sqrt-iter (+ i 1) n))))
   (is-sqrt-iter 1 n))
+
+(define (count n)
+  (define (count-iter i n)
+    (cond ((>= i n) n)
+	  (else (count-iter (+ i 1) n))))
+  (count-iter 0 n))
+
+(define (count-apply n)
+  (define (count-iter i n)
+    (cond ((>= i n) n)
+	  (else (apply count-iter (list (+ i 1) n)))))
+  (count-iter 0 n))
+
+(define d (stream-filter is-sqrt integers))
 

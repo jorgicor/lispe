@@ -3,6 +3,8 @@
 
 /* pred.c */
 
+int s_tailrec;
+
 int p_nullp(SEXPR e);
 int p_pairp(SEXPR e);
 int p_symbolp(SEXPR e);
@@ -17,7 +19,9 @@ SEXPR p_setcdr(SEXPR e, SEXPR val);
 void p_evcon(void);
 void p_evlis(void);
 void p_eval(void);
-int p_apply(void);
+void p_evargs(void);
+void p_evseq(int eval_last);
+void p_apply(void);
 
 void p_print(SEXPR sexpr);
 void p_println(SEXPR sexpr);

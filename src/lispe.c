@@ -73,47 +73,46 @@ void throw_err(const char *s)
 struct builtin {
 	const char* id;
 	void (*fun)(void);
-	int tailrec;
 };
 
 static struct builtin builtin_functions[] = {
-	{ "apply", &apply, 0 },
-	{ "car",  &car, 0 },
-	{ "cdr", &cdr, 0 },
-	{ "cons", &cons, 0 },
-	{ "pair?", &pairp, 0 },
-	{ "-", &difference, 0 },
-	{ "=", &equal_numbersp, 0 },
-	{ "eq?", &eqp, 0 },
-	{ "eqv?", &eqvp, 0 },
-	{ "equal?", &equalp, 0 },
-	{ ">", &greaterp, 0 },
-	{ ">=", &greater_eqp, 0 },
-	{ "eval", &eval, 1 },
-	{ "gc", &gc, 0 },
-	{ "<", &lessp, 0 },
-	{ "<=", &less_eqp, 0 },
-	{ "number?", &numberp, 0 },
-	{ "+", &plus, 0 },
-	{ "set-car!", &setcar, 0 },
-	{ "set-cdr!", &setcdr, 0 },
-	{ "symbol?", &symbolp, 0 },
-	{ "*", &times, 0 },
-	{ "quit", &quit, 0 },
-	{ "/", &divide, 0 },
+	{ "car",  &car },
+	{ "cdr", &cdr },
+	{ "cons", &cons },
+	{ "pair?", &pairp },
+	{ "-", &difference },
+	{ "=", &equal_numbersp },
+	{ "eq?", &eqp },
+	{ "eqv?", &eqvp },
+	{ "equal?", &equalp },
+	{ ">", &greaterp },
+	{ ">=", &greater_eqp },
+	{ "eval", &eval },
+	{ "apply", &apply },
+	{ "gc", &gc },
+	{ "<", &lessp },
+	{ "<=", &less_eqp },
+	{ "number?", &numberp },
+	{ "+", &plus },
+	{ "set-car!", &setcar },
+	{ "set-cdr!", &setcdr },
+	{ "symbol?", &symbolp },
+	{ "*", &times },
+	{ "quit", &quit },
+	{ "/", &divide },
 	/* modulo and remainder */
 };
 
 static struct builtin builtin_specials[] = {
-	{ "body", &body, 0 },
-	{ "cond", &cond, 1 },
-	{ "lambda", &lambda, 0 },
-	{ "quote", &quote, 0 },
-	{ "set!", &set, 0 },
-	{ "define", &define, 0 },
-	{ "special", &special, 0 },
-	// { "delay", &delay, 0 },
-	// { "cons-stream", &cons_stream, 0 },
+	{ "body", &body },
+	{ "cond", &cond },
+	{ "lambda", &lambda },
+	{ "quote", &quote },
+	{ "set!", &set },
+	{ "define", &define },
+	{ "special", &special },
+	// { "delay", &delay },
+	// { "cons-stream", &cons_stream },
 };
 
 static void install_builtin(const char *name, SEXPR val)
@@ -159,18 +158,6 @@ void apply_builtin_special(int i)
 {
 	chkrange(i, NELEMS(builtin_specials));
 	apply_builtin(&builtin_specials[i]);
-}
-
-int builtin_function_tailrec(int i)
-{
-	chkrange(i, NELEMS(builtin_functions));
-	return builtin_functions[i].tailrec;
-}
-
-int builtin_special_tailrec(int i)
-{
-	chkrange(i, NELEMS(builtin_specials));
-	return builtin_specials[i].tailrec;
 }
 
 static const char *builtin_name(struct builtin *pbin)
@@ -247,6 +234,7 @@ static void quote(void)
 static void cond(void)
 {
 	p_evcon();
+	s_tailrec = 1;
 }
 
 static void quit(void)
@@ -612,19 +600,14 @@ static void cons_stream(void)
 static void eval(void)
 {
 	s_val = p_car(s_args);
+	s_tailrec = 1;
 }
 
 static void apply(void)
 {
-	int tailrec;
-
 	s_proc = p_car(s_args);
 	s_args = p_car(p_cdr(s_args));
-	tailrec = p_apply(); 
-	if (tailrec) {
-		s_expr = s_val;
-		p_eval();
-	}
+	p_apply(); 
 }
 
 static void gc(void)

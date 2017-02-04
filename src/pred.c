@@ -17,7 +17,7 @@ void p_println_env(SEXPR env);
  * All the internal functions start with p_ .
  */
 
-static int s_debug = 0;
+static int s_debug = 1;
 
 int p_nullp(SEXPR e)
 {
@@ -173,7 +173,8 @@ void p_evcon(void)
 		if (p_eqp(s_val, SEXPR_FALSE)) {
 			c = p_cdr(c);
 		} else {
-			s_val = p_car(p_cdr(tmp));
+			s_unev = p_cdr(tmp);
+			p_evseq(0);
 			return;
 		}
 	}
@@ -181,14 +182,14 @@ void p_evcon(void)
 	throw_err("cond: no condition was true");
 }
 
-/* Evaluates a list of expressions in s_unev. If !eval_last, the last
+/* Evaluates a list of expressions which are in s_unev. If !eval_last, the last
  * expression is returned in s_val but not evaluated. If eval_last, all
  * expressions are evaluated and the result of the last is s_val.
  *
  * in: unev, env.
  * out: val.
  */
-static void p_evseq(int eval_last)
+void p_evseq(int eval_last)
 {
 	while (!p_nullp(s_unev)) {
 		s_expr = p_car(s_unev);
@@ -208,15 +209,15 @@ static void p_evseq(int eval_last)
 
 /* in: proc, args.
  * Exits: val.
- * Return 1 if tail recursion is in effect.
+ * Will set s_tailrec if tail recursion should be made.
  *
  * TODO: we don't have s_env now probably, so we cannot implement dynamic
  * binding right now... (?)
  */
-int p_apply(void)
+void p_apply(void)
 {
 	SEXPR params, body, params_n_body;
-	int celli, tailrec;
+	int celli;
 
 	if (s_debug) {
 		printf("apply fn: ");
@@ -229,14 +230,14 @@ int p_apply(void)
 
 	switch (sexpr_type(s_proc)) {
 	case SEXPR_BUILTIN_FUNCTION:
-		tailrec = builtin_function_tailrec(sexpr_index(s_proc));
+		s_tailrec = 0;
 		apply_builtin_function(sexpr_index(s_proc));
-		return tailrec;
+		return;
 
 	case SEXPR_BUILTIN_SPECIAL:
-		tailrec = builtin_special_tailrec(sexpr_index(s_proc));
+		s_tailrec = 0;
 		apply_builtin_special(sexpr_index(s_proc));
-		return tailrec;
+		return;
 
 	case SEXPR_FUNCTION:
 		/* 
@@ -257,7 +258,8 @@ int p_apply(void)
 		body = cell_cdr(celli);
 		s_unev = body;
 		p_evseq(0);
-		return 1;
+		s_tailrec = 1;
+		return;
 
 	case SEXPR_SPECIAL:
 		/*
@@ -282,11 +284,11 @@ int p_apply(void)
 		p_evseq(1);
 		/* get the last environment */
 		s_env = pop();
-		return 1;
+		s_tailrec = 1;
+		return;
 
 	default:
 		throw_err("applying to a unknown object type");
-		return 0;
 	}
 }
 
@@ -330,7 +332,7 @@ static SEXPR p_adjoin(SEXPR p, SEXPR *node, SEXPR e)
  * in: unev, env, args (NIL).
  * out: args.
  */
-static void p_evargs(void)
+void p_evargs(void)
 {
 	SEXPR node;
 
@@ -368,7 +370,7 @@ static void p_evargs(void)
  */
 void p_eval(void)
 {
-	int t, tailrec;
+	int t;
 	SEXPR bind;
 
 	s_evalc++;
@@ -436,8 +438,8 @@ again:  switch (sexpr_type(s_expr)) {
 			p_evargs();
 			s_proc = pop();
 		}
-		tailrec = p_apply();
-		if (tailrec) {
+		p_apply();
+		if (s_tailrec) {
 			s_expr = s_val;
 			goto again;
 		}
