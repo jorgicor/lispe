@@ -30,7 +30,8 @@
 (define (cdar p) (cdr (car p)))
 (define (cddr p) (cdr (cdr p)))
 
-(define (append first . rest)
+; TODO: must accept no argumants...
+(define (append . args)
   (define (append-acc head node cur r)
     (cond [(null? cur)
 	   (cond [(null? r) head]
@@ -38,8 +39,10 @@
 		 [else (append-acc head node (car r) (cdr r))])]
 	  [else (set-cdr! node (cons (car cur) '()))
 		(append-acc head (cdr node) (cdr cur) r)]))
-  (let ([tmp-node (cons '() '())])
-    (cdr (append-acc tmp-node tmp-node first rest))))
+  (if (null? args)
+    args
+    (let ([tmp-node (cons '() '())])
+      (cdr (append-acc tmp-node tmp-node (car args) (cdr args))))))
 
 (define (max first . rest)
   (define (maxn m p)
