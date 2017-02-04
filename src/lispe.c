@@ -35,6 +35,8 @@ static void setcdr(void);
 static void quote(void);
 static void cond(void);
 static void iff(void);
+static void or(void);
+static void and(void);
 static void lambda(void);
 static void special(void);
 static void body(void);
@@ -105,13 +107,15 @@ static struct builtin builtin_functions[] = {
 };
 
 static struct builtin builtin_specials[] = {
+	{ "and", &and },
 	{ "body", &body },
 	{ "cond", &cond },
+	{ "define", &define },
 	{ "if", &iff },
 	{ "lambda", &lambda },
+	{ "or", &or },
 	{ "quote", &quote },
 	{ "set!", &set },
-	{ "define", &define },
 	{ "special", &special },
 	// { "delay", &delay },
 	// { "cons-stream", &cons_stream },
@@ -231,6 +235,50 @@ static SEXPR read(int *errorc)
 static void quote(void)
 {
 	s_val = p_car(s_args);
+}
+
+static void and(void)
+{
+	s_val = SEXPR_TRUE;
+	if (p_nullp(s_args))
+		return;
+
+	while (!p_eqp(s_val, SEXPR_FALSE)) {
+		s_val = p_car(s_args);
+		s_args = p_cdr(s_args);
+		if (p_nullp(s_args)) {
+			s_tailrec = 1;
+			break;
+		}
+		s_expr = s_val;
+		push(s_args);
+		push(s_env);
+		p_eval();
+		s_env = pop();
+		s_args = pop();
+	}
+}
+
+static void or(void)
+{
+	s_val = SEXPR_FALSE;
+	if (p_nullp(s_args))
+		return;
+
+	while (p_eqp(s_val, SEXPR_FALSE)) {
+		s_val = p_car(s_args);
+		s_args = p_cdr(s_args);
+		if (p_nullp(s_args)) {
+			s_tailrec = 1;
+			break;
+		}
+		s_expr = s_val;
+		push(s_args);
+		push(s_env);
+		p_eval();
+		s_env = pop();
+		s_args = pop();
+	}
 }
 
 static void cond(void)
