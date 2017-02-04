@@ -30,7 +30,17 @@
 (define (cdar p) (cdr (car p)))
 (define (cddr p) (cdr (cdr p)))
 
-; TODO: must accept no argumants...
+(define map0 (lambda (fn p)
+    (if (null? p)
+      '()
+      (cons (fn (car p)) (map0 fn (cdr p))))))
+
+(define let (special (varlist . rest)
+    (cons (cons 'lambda (cons (map0 car varlist) rest))
+	  (map0 cadr varlist))))
+
+; append lists on a new list except that the last argument is shared
+; if no arguments return nil
 (define (append . args)
   (define (append-acc head node cur r)
     (cond [(null? cur)
@@ -43,6 +53,53 @@
     args
     (let ([tmp-node (cons '() '())])
       (cdr (append-acc tmp-node tmp-node (car args) (cdr args))))))
+
+; reverse list p
+(define (reverse p)
+  (define (rev head p)
+    (if (null? p)
+      head
+      (rev (cons (car p) head) (cdr p))))
+  (if (null? p)
+    '()
+    (rev (cons (car p) '()) (cdr p))))
+
+(define (list-tail p n)
+  (if (zero? n)
+    p
+    (list-tail (cdr p) (- n 1))))
+
+(define (list-ref p n)
+  (car (list-tail p n)))
+
+(define (list-set! p n elem)
+  (set-car! (list-tail p n) elem))
+
+(define (member elem p . compare)
+  (define (memb elem p cmp)
+    (cond [(null? p) #f]
+	  [(cmp elem (car p)) p]
+	  [else (memb elem (cdr p) cmp)]))
+  (if (null? compare)
+    (memb elem p equal? p)
+    (memb elem p (car compare))))
+
+(define (memq elem p)
+  (member elem p eq?))
+
+(define (memv elem p)
+  (member elem p eqv?))
+
+(define (list-copy p)
+  (define (copy head node p)
+    (if (null? p)
+      head
+      (begin (set-cdr! node (cons (car p) '()))
+	     (copy head (cdr node) (cdr p)))))
+  (if (null? p)
+    '()
+    (let ([head (cons (car p) '())])
+      (copy head head (cdr p)))))
 
 (define (max first . rest)
   (define (maxn m p)
@@ -71,15 +128,6 @@
       n
       (len-iter (+ n 1) (cdr p))))
   (len-iter 0 p))
-
-(define map0 (lambda (fn p)
-    (if (null? p)
-      '()
-      (cons (fn (car p)) (map0 fn (cdr p))))))
-
-(define let (special (varlist . rest)
-    (cons (cons 'lambda (cons (map0 car varlist) rest))
-	  (map0 cadr varlist))))
 
 (define (map fn first . rest)
   (define (map-lists fn pp)
