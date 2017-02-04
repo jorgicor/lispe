@@ -75,8 +75,6 @@ again:
 		} else {
 			goto again;
 		}
-	} else if (c == '(' || c == ')' || c == '.' || c == '\'') {
-		t->tok.type = c;
 	} else if (c == '#') {
 		c = getc_from_channel(t->in);
 		if (c == 't') {
@@ -87,6 +85,8 @@ again:
 			t->tok.type = '#';
 			t->peekc = c;
 		}
+	} else if (strchr("()[].'", c) != NULL) {
+		t->tok.type = c;
 	} else if (is_id_start(c)) {
 		t->tok.type = T_ATOM;
 		i = 0;
