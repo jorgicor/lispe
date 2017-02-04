@@ -205,7 +205,7 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 		return pop_n_ret(p, sexpr);
 	}
 
-error:	if (*errorc != ERRORC_OK)
+error:	if (*errorc == ERRORC_OK)
 		*errorc = ERRORC_SYNTAX;
 	return SEXPR_NIL;
 }

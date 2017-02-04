@@ -580,13 +580,51 @@ static void equalp(void)
 	                                                      : SEXPR_FALSE;
 }
 
+static void check_params(SEXPR params)
+{
+	SEXPR pars, pars2, p, p2;
+
+	/* check that all are symbols */
+	pars = params;
+	while (!p_nullp(pars)) {
+		if (p_pairp(pars) && p_symbolp(p_car(pars)))
+		{
+			pars = p_cdr(pars);
+		} else if (p_symbolp(pars)) {
+			pars = SEXPR_NIL;
+		} else {
+			throw_err("bad syntax on procedure parameters");
+		}
+	}
+
+	/* check that they don't repeat */
+	for (pars = params; p_pairp(pars); pars = p_cdr(pars)) {
+		p = p_car(pars);
+		pars2 = p_cdr(pars);
+		while (!p_nullp(pars2)) {
+			if (p_pairp(pars2)) {
+				p2 = p_car(pars2);
+				pars2 = p_cdr(pars2);
+			} else {
+				p2 = pars2;
+				pars2 = SEXPR_NIL;
+			}
+			if (p_eqp(p, p2)) {
+				throw_err("parameter repeated on procedure");
+			}
+		}
+	}
+}
+
 static void special(void)
 {
+	check_params(p_car(s_args));
 	s_val = make_special(sexpr_index(p_cons(s_args, s_env)));
 }
 
 static void lambda(void)
 {
+	check_params(p_car(s_args));
 	s_val = make_function(sexpr_index(p_cons(s_args, s_env)));
 }
 
