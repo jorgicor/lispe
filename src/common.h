@@ -16,7 +16,6 @@ int p_eqvp(SEXPR x, SEXPR y);
 int p_equalp(SEXPR x, SEXPR y);
 SEXPR p_setcar(SEXPR e, SEXPR val);
 SEXPR p_setcdr(SEXPR e, SEXPR val);
-void p_evcon(void);
 void p_evlis(void);
 void p_eval(void);
 void p_evargs(void);

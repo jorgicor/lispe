@@ -150,38 +150,6 @@ void p_evlis(void)
 	s_val = pop();
 }
 
-/* 
- * Evaluates cond. s_args is the cond expression.
- * s_val will be the unevaluted expression of the first true clause.
- *
- * in: args, env
- * out: val
- */
-void p_evcon(void)
-{
-	SEXPR c, tmp;
-
-	c = s_args;
-	while (!p_nullp(c)) {
-		tmp = p_car(c);
-		s_expr = p_car(tmp);
-		push(s_args);
-		push(s_env);
-		p_eval();
-		s_env = pop();
-		s_args = pop();
-		if (p_eqp(s_val, SEXPR_FALSE)) {
-			c = p_cdr(c);
-		} else {
-			s_unev = p_cdr(tmp);
-			p_evseq(0);
-			return;
-		}
-	}
-
-	throw_err("cond: no condition was true");
-}
-
 /* Evaluates a list of expressions which are in s_unev. If !eval_last, the last
  * expression is returned in s_val but not evaluated. If eval_last, all
  * expressions are evaluated and the result of the last is s_val.

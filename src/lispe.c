@@ -235,8 +235,32 @@ static void quote(void)
 
 static void cond(void)
 {
-	p_evcon();
-	s_tailrec = 1;
+	int more;
+	SEXPR c, tmp;
+
+	c = s_args;
+	more = 1;
+	while (more && !p_nullp(c)) {
+		tmp = p_car(c);
+		s_expr = p_car(tmp);
+		push(s_args);
+		push(s_env);
+		p_eval();
+		s_env = pop();
+		s_args = pop();
+		if (p_eqp(s_val, SEXPR_FALSE)) {
+			c = p_cdr(c);
+		} else {
+			s_unev = p_cdr(tmp);
+			p_evseq(0);
+			s_tailrec = 1;
+			more = 0;
+		}
+	}
+
+	if (more) {
+		throw_err("cond: no condition was true");
+	}
 }
 
 static void iff(void)
