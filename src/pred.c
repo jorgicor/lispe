@@ -349,15 +349,12 @@ void p_eval(void)
 	}
 
 again:  switch (sexpr_type(s_expr)) {
-	case SEXPR_NIL:
+	/* () does not evaluate to itself in Scheme
+	 * case SEXPR_NIL:
+	 */
 	case SEXPR_TRUE:
 	case SEXPR_FALSE:
 	case SEXPR_NUMBER:
-	case SEXPR_BUILTIN_FUNCTION:
-	case SEXPR_BUILTIN_SPECIAL:
-	case SEXPR_FUNCTION:
-	case SEXPR_SPECIAL:
-	case SEXPR_DYN_FUNCTION:
 		s_evalc--;
 		s_val = s_expr;
 		return;
