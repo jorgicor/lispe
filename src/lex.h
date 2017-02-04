@@ -16,7 +16,8 @@ int getc_from_channel(struct input_channel *ic);
 
 enum {
 	T_ATOM = 1024,
-	T_NUMBER,
+	T_INTEGER,
+	T_REAL,
 	T_TRUE,
 	T_FALSE
 };
@@ -32,7 +33,8 @@ struct token {
 			char name[MAX_NAME];
 			int len;
 		} atom;
-		float number;
+		int integer;
+		float real;
 	} value;
 };
 

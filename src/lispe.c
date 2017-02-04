@@ -23,6 +23,8 @@ static void delay(void);
 static void cons_stream(void);
 static void pairp(void);
 static void numberp(void);
+static void integerp(void);
+static void realp(void);
 static void symbolp(void);
 static void eqp(void);
 static void eqvp(void);
@@ -79,24 +81,26 @@ struct builtin {
 };
 
 static struct builtin builtin_functions[] = {
+	{ "apply", &apply },
 	{ "car",  &car },
 	{ "cdr", &cdr },
 	{ "cons", &cons },
-	{ "pair?", &pairp },
 	{ "-", &difference },
 	{ "=", &equal_numbersp },
 	{ "eq?", &eqp },
 	{ "eqv?", &eqvp },
 	{ "equal?", &equalp },
+	{ "eval", &eval },
 	{ ">", &greaterp },
 	{ ">=", &greater_eqp },
-	{ "eval", &eval },
-	{ "apply", &apply },
 	{ "gc", &gc },
+	{ "integer?", &integerp },
 	{ "<", &lessp },
 	{ "<=", &less_eqp },
 	{ "number?", &numberp },
+	{ "pair?", &pairp },
 	{ "+", &plus },
+	{ "real?", &realp },
 	{ "set-car!", &setcar },
 	{ "set-cdr!", &setcdr },
 	{ "symbol?", &symbolp },
@@ -416,9 +420,12 @@ static int all_numbers(SEXPR p)
 	return 1;
 }
 
-static void arith(float n0, float (*fun)(float, float))
+static void arith(int n0, int op)
 {
-	float n;
+	struct number m, n;
+	struct number *pn;
+
+	build_int_number(&m, n0);	
 
 	/* count arguments */
 	if (!at_leastn(s_args, 1)) {
@@ -432,24 +439,26 @@ static void arith(float n0, float (*fun)(float, float))
 	}
 
 	/* calculate */
-	n = sexpr_number(p_car(s_args));
+	copy_number(sexpr_number(p_car(s_args)), &n);
 	s_args = p_cdr(s_args);
 	if (!p_pairp(s_args)) {
-		n = fun(n0, n);
+		apply_arith_op(op, &m, &n, &n);
 	} else {
 		while (p_pairp(s_args)) {
-			n = fun(n, sexpr_number(p_car(s_args)));
+			pn = sexpr_number(p_car(s_args));
+			apply_arith_op(op, &n, pn, &n);
 			s_args = p_cdr(s_args);
 		}
 	}
 
-	s_val = make_number(n);
+	s_val = make_number(&n);
 }
 
 /* used for =, <, >, <=, >= */
-static void logic(int (*fun)(float, float))
+static void logic(int op)
 {
-	float n, n2;
+	struct number n;
+	struct number *pn;
 
 	/* count arguments */
 	if (!at_leastn(s_args, 2)) {
@@ -462,109 +471,64 @@ static void logic(int (*fun)(float, float))
 	}
 
 	/* calculate */
-	n = sexpr_number(p_car(s_args));
+	copy_number(sexpr_number(p_car(s_args)), &n);
 	s_args = p_cdr(s_args);
 	while (!p_nullp(s_args)) {
-		n2 = sexpr_number(p_car(s_args));
-		if (!fun(n, n2)) {
+		pn = sexpr_number(p_car(s_args));
+		if (!apply_logic_op(op, &n, pn)) {
 			s_val = SEXPR_FALSE;
 			return;
 		}
-		n = n2;
+		copy_number(pn, &n);
 		s_args = p_cdr(s_args);
 	}
 
 	s_val = SEXPR_TRUE;
 }
 
-static int lessp_fun(float a, float b)
-{
-	return a < b;
-}
-
 static void lessp(void)
 {
-	logic(lessp_fun);
-}
-
-static int greaterp_fun(float a, float b)
-{
-	return a > b;
+	logic(OP_LOGIC_LT);
 }
 
 static void greaterp(void)
 {
-	logic(greaterp_fun);
-}
-
-static int greater_eqp_fun(float a, float b)
-{
-	return a >= b;
+	logic(OP_LOGIC_GT);
 }
 
 static void greater_eqp(void)
 {
-	logic(greater_eqp_fun);
-}
-
-static int less_eqp_fun(float a, float b)
-{
-	return a <= b;
+	logic(OP_LOGIC_GE);
 }
 
 static void less_eqp(void)
 {
-	logic(less_eqp_fun);
-}
-
-static int equal_numbersp_fun(float a, float b)
-{
-	return a == b;
+	logic(OP_LOGIC_LE);
 }
 
 static void equal_numbersp(void)
 {
-	logic(equal_numbersp_fun);
-}
-
-static float plus_fun(float a, float b)
-{
-	return a + b;
+	logic(OP_LOGIC_EQUAL);
 }
 
 static void plus(void)
 {
-	arith(0, plus_fun);
-}
-
-static float difference_fun(float a, float b)
-{
-	return a - b;
+	arith(0, OP_ARITH_ADD);
 }
 
 static void difference(void) 
 {
-	arith(0, difference_fun);
-}
-
-static float times_fun(float a, float b)
-{
-	return a * b;
+	arith(0, OP_ARITH_SUB);
 }
 
 static void times(void)
 {
-	arith(1, times_fun);
-}
-
-static float divide_fun(float a, float b)
-{
-	return a / b;
+	arith(1, OP_ARITH_MUL);
 }
 
 static void divide(void)
 {
-	arith(1, divide_fun);
+	arith(1, OP_ARITH_DIV);
 }
 
 static void car(void)
@@ -608,6 +572,16 @@ static void pairp(void)
 static void numberp(void)
 {
 	s_val = p_numberp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static void integerp(void)
+{
+	s_val = p_integerp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static void realp(void)
+{
+	s_val = p_realp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static void eqp(void)

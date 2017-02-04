@@ -4,7 +4,7 @@
 #include "symbols.h"
 #include <assert.h>
 
-float sexpr_number(SEXPR e)
+struct number *sexpr_number(SEXPR e)
 {
 	assert(sexpr_type(e) == SEXPR_NUMBER);
 	return get_number(sexpr_index(e));
@@ -16,7 +16,7 @@ const char* sexpr_name(SEXPR e)
 	return get_symbol(sexpr_index(e));
 }
 
-SEXPR make_number(float n)
+SEXPR make_number(struct number *n)
 {
 	int i;
 

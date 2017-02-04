@@ -3,6 +3,7 @@
 #include "sexpr.h"
 #endif
 #include "cells.h"
+#include "numbers.h"
 #include "common.h"
 #include <assert.h>
 #ifndef STDIO_H
@@ -32,6 +33,16 @@ int p_symbolp(SEXPR e)
 int p_numberp(SEXPR e)
 {
 	return sexpr_type(e) == SEXPR_NUMBER;
+}
+
+int p_realp(SEXPR e)
+{
+	return p_numberp(e) && number_type(sexpr_number(e)) == NUM_REAL;
+}
+
+int p_integerp(SEXPR e)
+{
+	return p_numberp(e) && number_type(sexpr_number(e)) == NUM_INT;
 }
 
 int p_pairp(SEXPR e)
@@ -65,7 +76,7 @@ int p_eqp(SEXPR x, SEXPR y)
 int p_eqvp(SEXPR x, SEXPR y)
 {
 	if (p_numberp(x) && p_numberp(y))
-		return sexpr_number(x) == sexpr_number(y);
+		return numbers_eqv(sexpr_number(x), sexpr_number(y));
 	else
 		return sexpr_eq(x, y);
 }
@@ -457,7 +468,7 @@ void p_print(SEXPR sexpr)
 		printf("%s", sexpr_name(sexpr));
 		break;
 	case SEXPR_NUMBER:
-		printf("%g", sexpr_number(sexpr));
+		print_number(sexpr_number(sexpr));
 		break;
 	case SEXPR_BUILTIN_FUNCTION:
 		printf("{builtin function %s}",

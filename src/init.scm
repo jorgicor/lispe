@@ -2,6 +2,14 @@
 
 (define else #t)
 
+; These are not throwing error on type...
+; And this is not correct... Floating numbers can be marked exact with #e1.0
+(define (exact? n)
+  (integer? n))
+
+(define (inexact? n)
+  (real? n))
+
 (define (null? p)
   (eq? p '()))
 

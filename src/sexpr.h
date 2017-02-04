@@ -14,8 +14,7 @@
  * SEXPR_FUNCTION and
  * SEXPR_SPECIAL and
  * SEXPR_CLOSURE: bits(28..0) is index into cells.
- * SEXPR_NUMBER: bits(28..0) is index to a cell whose car is the floating
- *               number (the cdr we don't care).
+ * SEXPR_NUMBER: bits(28..0) is index of number.
  * SEXPR_SYMBOL: bits(28..0) is index to a cell whose car is the pointer
  *                to the struct literal (the cdr we don't care).
  *
@@ -68,10 +67,12 @@ enum {
 #define make_special(args_n_body_celli) \
 	(SEXPR_SPECIAL | (args_n_body_celli))
 
-float sexpr_number(SEXPR e);
+struct number;
+
+struct number *sexpr_number(SEXPR e);
 const char* sexpr_name(SEXPR e);
 
 SEXPR make_symbol(const char *s, int len);
-SEXPR make_number(float n);
+SEXPR make_number(struct number *n);
 
 #endif

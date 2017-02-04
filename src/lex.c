@@ -54,7 +54,7 @@ struct token *pop_token(struct tokenizer *t)
 {
 	int c;
 	int i;
-	float n;
+	int n;
 
 again:	
 	if (t->peekc >= 0) {
@@ -99,8 +99,8 @@ again:
 		t->tok.value.atom.len = i;
 		t->peekc = c;
 	} else if (isdigit(c)) {
-		t->tok.type = T_NUMBER;
-		n = 0.0f;
+		t->tok.type = T_INTEGER;
+		n = 0;
 		while (c == '0') {
 			c = getc_from_channel(t->in);
 		}
@@ -108,7 +108,7 @@ again:
 			n = n * 10 + (c - '0');
 			c = getc_from_channel(t->in);
 		}
-		t->tok.value.number = n;
+		t->tok.value.integer = n;
 		t->peekc = c;
 	} else if (isspace(c)) {
 		while (isspace(c)) {

@@ -2,8 +2,9 @@
 #ifndef SEXPR_H
 #include "sexpr.h"
 #endif
-#include "common.h"
+#include "numbers.h"
 #include "lex.h"
+#include "common.h"
 
 enum {
 	PARSER_NSTACK = 1024
@@ -167,6 +168,7 @@ static SEXPR pop_n_ret(struct parser *p, SEXPR e)
 
 static SEXPR parse_sexpr(struct parser *p, int *errorc)
 {
+	struct number n;
 	struct token *tok;
 	int closetok;
 	SEXPR sexpr;
@@ -183,8 +185,13 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 		sexpr = make_symbol(tok->value.atom.name,
 				    tok->value.atom.len);
 		return pop_n_ret(p, sexpr);
-	} else if (tok->type == T_NUMBER) {
-		sexpr = make_number(tok->value.number);
+	} else if (tok->type == T_INTEGER) {
+		build_int_number(&n, tok->value.integer);
+		sexpr = make_number(&n);
+		return pop_n_ret(p, sexpr);
+	} else if (tok->type == T_REAL) {
+		build_real_number(&n, tok->value.real);
+		sexpr = make_number(&n);
 		return pop_n_ret(p, sexpr);
 	} else if (tok->type == '\'') {
 		pop_token(p->tokenizer);
