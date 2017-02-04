@@ -64,13 +64,15 @@
 
 (define (length p)
   (define (len-iter n p)
-    (cond [(null? p) n]
-	  [else (len-iter (+ n 1) (cdr p))]))
+    (if (null? p)
+      n
+      (len-iter (+ n 1) (cdr p))))
   (len-iter 0 p))
 
 (define map0 (lambda (fn p)
-    (cond [(null? p) '()]
-          [else (cons (fn (car p)) (map0 fn (cdr p)))])))
+    (if (null? p)
+      '()
+      (cons (fn (car p)) (map0 fn (cdr p))))))
 
 (define let (special (varlist . rest)
     (cons (cons 'lambda (cons (map0 car varlist) rest))
@@ -78,18 +80,21 @@
 
 (define (map fn first . rest)
   (define (map-lists fn pp)
-    (cond [(null? (car pp)) '()]
-	  [else (cons (apply fn (map0 car pp))
-		      (map-lists fn (map0 cdr pp)))]))
+    (if (null? (car pp))
+      '()
+      (cons (apply fn (map0 car pp))
+	    (map-lists fn (map0 cdr pp)))))
   (map-lists fn (cons first rest)))
 
 (define (abs n)
-  (cond [(< n 0) (- n)]
-	[else n]))
+  (if (< n 0)
+    (- n)
+    n))
 
 (define (fact n)
-  (cond [(= n 0) 1]
-	[else (* n (fact (- n 1)))]))
+  (if (= n 0)
+    1
+    (* n (fact (- n 1)))))
 
 (define delay (special (expr)
   (list 'lambda '() expr)))
@@ -107,14 +112,15 @@
 (define (stream-cdr stream) (force (cdr stream)))
 
 (define (stream-ref s n)
-  (cond [(= n 0) (stream-car s)]
-	[else (stream-ref (stream-cdr s) (- n 1))]))
+  (if (= n 0)
+    (stream-car s)
+    (stream-ref (stream-cdr s) (- n 1))))
 
 (define (stream-map proc . ss)
-  (cond ((stream-null? (car ss)) the-empty-stream)
-	(else (cons-stream (apply proc (map stream-car ss))
-			   (apply stream-map
-				  (cons proc (map stream-cdr ss)))))))
+  (if (stream-null? (car ss))
+    the-empty-stream
+    (cons-stream (apply proc (map stream-car ss))
+		 (apply stream-map (cons proc (map stream-cdr ss))))))
 
 (define (stream-filter pred stream)
   (cond [(stream-null? stream) the-empty-stream]
@@ -131,27 +137,30 @@
 (define integers (cons-stream 1 (add-streams ones integers)))
 
 (define (stream-interval low hi)
-  (cond [(> low hi) the-empty-stream]
-	[else (cons-stream low (stream-interval (+ low 1) hi))]))
+  (if (> low hi)
+    the-empty-stream
+    (cons-stream low (stream-interval (+ low 1) hi))))
 
 (define (is-sqrt n)
   (define (is-sqrt-iter i n)
-    (define mul (* i i))
-    (cond [(> mul n) #f] 
-	  [(= mul n) #t]
-	  [else (is-sqrt-iter (+ i 1) n)]))
+    (let ([mul (* i i)])
+      (cond [(> mul n) #f]
+	    [(= mul n) #t]
+	    [else (is-sqrt-iter (+ i 1) n)])))
   (is-sqrt-iter 1 n))
 
 (define (count n)
   (define (count-iter i n)
-    (cond [(>= i n) n]
-	  [else (count-iter (+ i 1) n)]))
+    (if (>= i n)
+      n
+      (count-iter (+ i 1) n)))
   (count-iter 0 n))
 
 (define (count-apply n)
   (define (count-iter i n)
-    (cond [(>= i n) n]
-	  [else (apply count-iter (list (+ i 1) n))]))
+    (if (>= i n)
+      n
+      (apply count-iter (list (+ i 1) n))))
   (count-iter 0 n))
 
 (define d (stream-filter is-sqrt integers))

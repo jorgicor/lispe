@@ -34,6 +34,7 @@ static void setcar(void);
 static void setcdr(void);
 static void quote(void);
 static void cond(void);
+static void iff(void);
 static void lambda(void);
 static void special(void);
 static void body(void);
@@ -106,6 +107,7 @@ static struct builtin builtin_functions[] = {
 static struct builtin builtin_specials[] = {
 	{ "body", &body },
 	{ "cond", &cond },
+	{ "if", &iff },
 	{ "lambda", &lambda },
 	{ "quote", &quote },
 	{ "set!", &set },
@@ -234,6 +236,23 @@ static void quote(void)
 static void cond(void)
 {
 	p_evcon();
+	s_tailrec = 1;
+}
+
+static void iff(void)
+{
+	s_expr = p_car(s_args);
+	s_args = p_cdr(s_args);
+	push(s_args);
+	push(s_env);
+	p_eval();
+	s_env = pop();
+	s_args = pop();
+	if (p_eqp(s_val, SEXPR_FALSE)) {
+		s_val = p_car(p_cdr(s_args));
+	} else {
+		s_val = p_car(s_args);
+	}
 	s_tailrec = 1;
 }
 
