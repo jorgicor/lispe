@@ -25,6 +25,8 @@ static void pairp(void);
 static void numberp(void);
 static void integerp(void);
 static void realp(void);
+static void exactp(void);
+static void inexactp(void);
 static void symbolp(void);
 static void eqp(void);
 static void eqvp(void);
@@ -91,9 +93,11 @@ static struct builtin builtin_functions[] = {
 	{ "eqv?", &eqvp },
 	{ "equal?", &equalp },
 	{ "eval", &eval },
+	{ "exact?", &exactp },
 	{ ">", &greaterp },
 	{ ">=", &greater_eqp },
 	{ "gc", &gc },
+	{ "inexact?", &inexactp },
 	{ "integer?", &integerp },
 	{ "<", &lessp },
 	{ "<=", &less_eqp },
@@ -582,6 +586,16 @@ static void integerp(void)
 static void realp(void)
 {
 	s_val = p_realp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static void exactp(void)
+{
+	s_val = p_exactp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static void inexactp(void)
+{
+	s_val = !p_exactp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static void eqp(void)

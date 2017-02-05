@@ -8,6 +8,7 @@
 #endif
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 enum { N_NUMBERS = NCELL };
 
@@ -154,9 +155,9 @@ void print_number(struct number *n)
 	}
 }
 
-typedef void (*coer_fun)(struct number *, struct number *, struct number *);
+typedef void (*coer_fun)(struct number *, struct number *);
 
-static void coer_int_real(struct number *a, struct number *b, struct number *r)
+static void coer_int_real(struct number *a, struct number *r)
 {
 	r->type = NUM_REAL;
 	r->val.real = a->val.integer;
@@ -245,11 +246,11 @@ void apply_arith_op(int op, struct number *a, struct number *b,
 		if (cfn == NULL) {
 			cfn = get_coercion_fun(b->type, a->type);
 			assert(cfn != NULL);
-			cfn(a, b, &cn);
-			a = &cn;
-		} else {
-			cfn(b, a, &cn);
+			cfn(b, &cn);
 			b = &cn;
+		} else {
+			cfn(a, &cn);
+			a = &cn;
 		}
 	}
 
@@ -332,11 +333,11 @@ int apply_logic_op(int op, struct number *a, struct number *b)
 		if (cfn == NULL) {
 			cfn = get_coercion_fun(b->type, a->type);
 			assert(cfn != NULL);
-			cfn(a, b, &cn);
-			a = &cn;
-		} else {
-			cfn(b, a, &cn);
+			cfn(b, &cn);
 			b = &cn;
+		} else {
+			cfn(a, &cn);
+			a = &cn;
 		}
 	}
 
@@ -357,4 +358,34 @@ int numbers_eqv(struct number *a, struct number *b)
 void copy_number(struct number *src, struct number *dst)
 {
 	*dst = *src;
+}
+
+int exact_number(struct number *n)
+{
+	if (number_type(n) == NUM_INT)
+		return 1;
+	else
+		return 0;
+}
+
+/* Returns true if a number is mathematically an integer, not if the number
+ * has been defined as NUM_INT.
+ * For example, a NUM_REAL like 56.0, is mathematically an integer.
+ */
+int number_int(struct number *n)
+{
+	float int_part, frac_part;
+
+	if (number_type(n) == NUM_INT)
+		return 1;
+	if (n->val.real == (int) n->val.real)
+		return 1;
+	frac_part = modff(n->val.real, &int_part);
+	return frac_part == .0f;
+}
+
+/* Returns true if a number is mathematically a real. */
+int number_real(struct number *n)
+{
+	return 1;
 }

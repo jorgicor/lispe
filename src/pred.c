@@ -37,12 +37,25 @@ int p_numberp(SEXPR e)
 
 int p_realp(SEXPR e)
 {
-	return p_numberp(e) && number_type(sexpr_number(e)) == NUM_REAL;
+	if (!p_numberp(e))
+	       return 0;
+	return number_real(sexpr_number(e));
 }
 
 int p_integerp(SEXPR e)
 {
-	return p_numberp(e) && number_type(sexpr_number(e)) == NUM_INT;
+	if (!p_numberp(e))
+		return 0;
+	return number_int(sexpr_number(e));
+}
+
+int p_exactp(SEXPR e)
+{
+	if (!p_numberp(e)) {
+		throw_err("not a number");
+	}
+
+	return exact_number(sexpr_number(e));
 }
 
 int p_pairp(SEXPR e)

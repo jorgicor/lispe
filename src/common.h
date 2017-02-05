@@ -10,6 +10,7 @@ int p_pairp(SEXPR e);
 int p_symbolp(SEXPR e);
 int p_numberp(SEXPR e);
 int p_integerp(SEXPR e);
+int p_exactp(SEXPR e);
 int p_realp(SEXPR e);
 SEXPR p_car(SEXPR e);
 SEXPR p_cdr(SEXPR e);

@@ -4,6 +4,9 @@
 #ifndef STDIO_H
 #include <stdio.h>
 #endif
+#include <stdlib.h>
+#include <limits.h>
+#include <errno.h>
 
 /************************************************************/
 /* input channels                                           */
@@ -50,11 +53,47 @@ static int is_id_next(int c)
 	       	(strchr("!$%&*+-./:<=>?@^_~", c) != NULL);
 }
 
+static int separator(int c)
+{
+	return c == EOF || isspace(c) || strchr("()[]", c);
+}
+
+/* Returns true if the conversion was performed */
+static int convert_to_int(const char *p, int *result)
+{
+	char *ep;
+	long nlong;
+
+	errno = 0;
+	nlong = strtol(p, &ep, 10);
+	if (errno == ERANGE || *ep != '\0')
+		return 0;
+	if (nlong < INT_MIN || nlong > INT_MAX)
+		return 0;
+	*result = nlong;
+	return 1;
+}
+
+/* Returns true if the conversion was performed */
+static int convert_to_real(const char *p, float *result)
+{
+	char *ep;
+	float nreal;
+
+	errno = 0;
+	nreal = strtof(p, &ep);
+	if (*ep != '\0')
+		return 0;
+	*result = nreal;
+	return 1;
+}
+
 struct token *pop_token(struct tokenizer *t)
 {
-	int c;
-	int i;
-	int n;
+	int c, i;
+	int ival;
+	float rval;
+	const char *p;
 
 again:	
 	if (t->peekc >= 0) {
@@ -66,6 +105,12 @@ again:
 
 	if (c == EOF) {
 		t->tok.type = EOF;
+	} else if (isspace(c)) {
+		while (isspace(c)) {
+			c = getc_from_channel(t->in);
+		}
+		t->peekc = c;
+		goto again;
 	} else if (c == ';') {
 		while (c != '\n' && c != EOF) {
 			c = getc_from_channel(t->in);
@@ -75,6 +120,44 @@ again:
 		} else {
 			goto again;
 		}
+	} else if (strchr("()[]'", c) != NULL) {
+		t->tok.type = c;
+	} else {
+		i = 0;
+		while (!separator(c) && i < MAX_NAME - 1) {
+			t->tok.value.atom.name[i++] = c;
+			c = getc_from_channel(t->in);
+		}
+		t->tok.value.atom.name[i] = '\0';
+		t->tok.value.atom.len = i;
+		if (!separator(c)) {
+			/* TODO: issue warning: identifier truncated */
+			while (!separator(c)) {
+				c = getc_from_channel(t->in);
+			}
+		}
+		t->peekc = c;
+		p = t->tok.value.atom.name;
+		/* TODO: make these checks more efficient: for numbers
+		 * particulary...
+		 */
+		if (p[0] == '.' && p[1] == '\0' && separator(c)) {
+			t->tok.type = '.';
+		} else if (p[0] == '#' && p[1] == 't' && p[2] == '\0') {
+			t->tok.type = T_TRUE;
+		} else if (p[0] == '#' && p[1] == 'f' && p[2] == '\0') {
+			t->tok.type = T_FALSE;
+		} else if (convert_to_int(p, &ival)) {
+			t->tok.type = T_INTEGER;
+			t->tok.value.integer = ival;
+		} else if (convert_to_real(p, &rval)) {
+			t->tok.type = T_REAL;
+			t->tok.value.real = rval;
+		} else {
+			t->tok.type = T_ATOM;
+		}
+	}
+#if 0
 	} else if (c == '#') {
 		c = getc_from_channel(t->in);
 		if (c == 't') {
@@ -110,16 +193,11 @@ again:
 		}
 		t->tok.value.integer = n;
 		t->peekc = c;
-	} else if (isspace(c)) {
-		while (isspace(c)) {
-			c = getc_from_channel(t->in);
-		}
-		t->peekc = c;
-		goto again;
 	} else {
 		/* skip wrong token for now */
 		goto again;
 	}
+#endif
 
 	return &t->tok;
 }
