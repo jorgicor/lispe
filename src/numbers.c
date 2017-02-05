@@ -57,7 +57,7 @@ int install_number(struct number *n)
 	// dprintf("install number %f\n", n);
 	i = pop_free_slot();
 	// dprintf("installed %f in %d\n", n, i);
-	s_numbers[i].n = *n;
+	copy_number(n, &s_numbers[i].n);
 	return i;
 }
 
