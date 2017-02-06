@@ -1,6 +1,10 @@
 #ifndef LEX_H
 #define LEX_H
 
+#ifndef CFG_H
+#include "cfg.h"
+#endif
+
 #ifndef STDIO_H
 #define STDIO_H
 #include <stdio.h>
@@ -33,8 +37,7 @@ struct token {
 			char name[MAX_NAME];
 			int len;
 		} atom;
-		int integer;
-		float real;
+		REAL real;
 	} value;
 };
 

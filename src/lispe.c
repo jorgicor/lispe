@@ -26,7 +26,6 @@ static void numberp(void);
 static void integerp(void);
 static void realp(void);
 static void exactp(void);
-static void inexactp(void);
 static void symbolp(void);
 static void eqp(void);
 static void eqvp(void);
@@ -82,7 +81,7 @@ struct builtin {
 	void (*fun)(void);
 };
 
-static struct builtin builtin_functions[] = {
+ struct builtin builtin_functions[] = {
 	{ "apply", &apply },
 	{ "car",  &car },
 	{ "cdr", &cdr },
@@ -97,7 +96,6 @@ static struct builtin builtin_functions[] = {
 	{ ">", &greaterp },
 	{ ">=", &greater_eqp },
 	{ "gc", &gc },
-	{ "inexact?", &inexactp },
 	{ "integer?", &integerp },
 	{ "<", &lessp },
 	{ "<=", &less_eqp },
@@ -429,7 +427,7 @@ static void arith(int n0, int op)
 	struct number m, n;
 	struct number *pn;
 
-	build_int_number(&m, n0);	
+	build_real_number(&m, n0);	
 
 	/* count arguments */
 	if (!at_leastn(s_args, 1)) {
@@ -591,11 +589,6 @@ static void realp(void)
 static void exactp(void)
 {
 	s_val = p_exactp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
-}
-
-static void inexactp(void)
-{
-	s_val = !p_exactp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static void eqp(void)

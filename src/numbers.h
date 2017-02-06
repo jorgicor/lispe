@@ -1,6 +1,10 @@
 #ifndef NUMBERS_H
 #define NUMBERS_H
 
+#ifndef CFG_H
+#include "cfg.h"
+#endif
+
 /************************************************************
  * PRIVATE (exposed ony for efficiency)
  * Only numbers.c uses this representation directly.
@@ -11,19 +15,13 @@
 struct number {
 	int type;
 	union {
-		float real;
-		int integer;
+		REAL real;
 	} val;
 };
 
 /************************************************************/
 /* end of private section                                   */
 /************************************************************/
-
-enum {
-	NUM_INT, NUM_REAL,
-       	N_NUM_TYPES,
-};
 
 enum {
 	OP_ARITH_ADD, OP_ARITH_SUB, OP_ARITH_MUL, OP_ARITH_DIV,
@@ -35,9 +33,7 @@ enum {
        	N_NUM_LOGIC_OPS,
 };
 
-void build_int_number(struct number *n, int i);
-void build_real_number(struct number *n, float f);
-int number_type(struct number *n);
+void build_real_number(struct number *n, REAL f);
 void print_number(struct number *n);
 void apply_arith_op(int op, struct number *a, struct number *b,
 	       	    struct number *r);
@@ -45,7 +41,7 @@ int apply_logic_op(int op, struct number *a, struct number *b);
 int numbers_eqv(struct number *a, struct number *b);
 void copy_number(struct number *src, struct number *dst);
 int exact_number(struct number *n);
-int number_int(struct number *n);
+int number_integer(struct number *n);
 int number_real(struct number *n);
 
 int install_number(struct number *n);

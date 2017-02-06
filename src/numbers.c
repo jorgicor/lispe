@@ -106,11 +106,6 @@ void gc_numbers(void)
 	printf("[gc: %d/%d numbers]\n", nmarked, N_NUMBERS);
 }
 
-int number_type(struct number *n)
-{
-	return n->type;
-}
-
 struct number *get_number(int i)
 {
 	chkrange(i, N_NUMBERS);
@@ -131,41 +126,35 @@ void init_numbers(void)
 			sizeof(s_numbers), sizeof(s_num_marks));
 }
 
-void build_int_number(struct number *n, int i)
+enum {
+	NUM_REAL,
+       	N_NUM_TYPES,
+};
+
+static int number_type(struct number *n)
 {
-	n->type = NUM_INT;
-	n->val.integer = i;
+	return n->type;
 }
 
-void build_real_number(struct number *n, float f)
+void build_real_number(struct number *n, REAL d)
 {
 	n->type = NUM_REAL;
-	n->val.real = f;
+	n->val.real = d;
 }
 
 void print_number(struct number *n)
 {
 	switch (n->type) {
-	case NUM_INT:
-		printf("%d", n->val.integer);
-		break;
 	case NUM_REAL:
 		printf("%g", n->val.real);
 		break;
 	}
 }
 
-typedef void (*coer_fun)(struct number *, struct number *);
-
-static void coer_int_real(struct number *a, struct number *r)
-{
-	r->type = NUM_REAL;
-	r->val.real = a->val.integer;
-}
+typedef void (*coer_fun)(struct number *a, struct number *r);
 
 static const coer_fun coercion_table[N_NUM_TYPES][N_NUM_TYPES] = {
-	{ NULL, coer_int_real },
-	{ NULL, NULL },
+	{ NULL },
 };
 
 static coer_fun get_coercion_fun(int typea, int typeb)
@@ -174,30 +163,6 @@ static coer_fun get_coercion_fun(int typea, int typeb)
 }
 
 typedef void (*arith_fun)(struct number *, struct number *, struct number *);
-
-static void add_int(struct number *a, struct number *b, struct number *r)
-{
-	r->type = NUM_INT;
-	r->val.integer = a->val.integer + b->val.integer;
-}
-
-static void sub_int(struct number *a, struct number *b, struct number *r)
-{
-	r->type = NUM_INT;
-	r->val.integer = a->val.integer - b->val.integer;
-}
-
-static void mul_int(struct number *a, struct number *b, struct number *r)
-{
-	r->type = NUM_INT;
-	r->val.integer = a->val.integer * b->val.integer;
-}
-
-static void div_int(struct number *a, struct number *b, struct number *r)
-{
-	r->type = NUM_INT;
-	r->val.integer = a->val.integer / b->val.integer;
-}
 
 static void add_real(struct number *a, struct number *b, struct number *r)
 {
@@ -224,7 +189,6 @@ static void div_real(struct number *a, struct number *b, struct number *r)
 }
 
 static const arith_fun arith_table[N_NUM_TYPES][N_NUM_ARITH_OPS] = {
-	{ add_int, sub_int, mul_int, div_int },
 	{ add_real, sub_real, mul_real, div_real },
 };
 
@@ -261,31 +225,6 @@ void apply_arith_op(int op, struct number *a, struct number *b,
 
 typedef int (*logic_fun)(struct number *, struct number *);
 
-static int equal_int(struct number *a, struct number *b)
-{
-	return a->val.integer == b->val.integer;
-}
-
-static int gt_int(struct number *a, struct number *b)
-{
-	return a->val.integer > b->val.integer;
-}
-
-static int lt_int(struct number *a, struct number *b)
-{
-	return a->val.integer < b->val.integer;
-}
-
-static int ge_int(struct number *a, struct number *b)
-{
-	return a->val.integer >= b->val.integer;
-}
-
-static int le_int(struct number *a, struct number *b)
-{
-	return a->val.integer <= b->val.integer;
-}
-
 static int equal_real(struct number *a, struct number *b)
 {
 	return a->val.real == b->val.real;
@@ -312,7 +251,6 @@ static int le_real(struct number *a, struct number *b)
 }
 
 static const logic_fun logic_table[N_NUM_TYPES][N_NUM_LOGIC_OPS] = {
-	{ equal_int, gt_int, lt_int, ge_int, le_int },
 	{ equal_real, gt_real, lt_real, ge_real, le_real },
 };
 
@@ -362,25 +300,20 @@ void copy_number(struct number *src, struct number *dst)
 
 int exact_number(struct number *n)
 {
-	if (number_type(n) == NUM_INT)
+	if (number_integer(n) && 
+		(n->val.real > -REAL_MAX_INT && n->val.real < REAL_MAX_INT))
+       	{
 		return 1;
-	else
+	} else {
 		return 0;
+	}
 }
 
-/* Returns true if a number is mathematically an integer, not if the number
- * has been defined as NUM_INT.
- * For example, a NUM_REAL like 56.0, is mathematically an integer.
- */
-int number_int(struct number *n)
+int number_integer(struct number *n)
 {
-	float int_part, frac_part;
+	REAL int_part, frac_part;
 
-	if (number_type(n) == NUM_INT)
-		return 1;
-	if (n->val.real == (int) n->val.real)
-		return 1;
-	frac_part = modff(n->val.real, &int_part);
+	frac_part = r_modf(n->val.real, &int_part);
 	return frac_part == .0f;
 }
 

@@ -185,10 +185,6 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 		sexpr = make_symbol(tok->value.atom.name,
 				    tok->value.atom.len);
 		return pop_n_ret(p, sexpr);
-	} else if (tok->type == T_INTEGER) {
-		build_int_number(&n, tok->value.integer);
-		sexpr = make_number(&n);
-		return pop_n_ret(p, sexpr);
 	} else if (tok->type == T_REAL) {
 		build_real_number(&n, tok->value.real);
 		sexpr = make_number(&n);

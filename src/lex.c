@@ -59,29 +59,13 @@ static int separator(int c)
 }
 
 /* Returns true if the conversion was performed */
-static int convert_to_int(const char *p, int *result)
+static int convert_to_real(const char *p, REAL *result)
 {
 	char *ep;
-	long nlong;
+	REAL nreal;
 
 	errno = 0;
-	nlong = strtol(p, &ep, 10);
-	if (errno == ERANGE || *ep != '\0')
-		return 0;
-	if (nlong < INT_MIN || nlong > INT_MAX)
-		return 0;
-	*result = nlong;
-	return 1;
-}
-
-/* Returns true if the conversion was performed */
-static int convert_to_real(const char *p, float *result)
-{
-	char *ep;
-	float nreal;
-
-	errno = 0;
-	nreal = strtof(p, &ep);
+	nreal = r_strtod(p, &ep);
 	if (*ep != '\0')
 		return 0;
 	*result = nreal;
@@ -91,8 +75,7 @@ static int convert_to_real(const char *p, float *result)
 struct token *pop_token(struct tokenizer *t)
 {
 	int c, i;
-	int ival;
-	float rval;
+	REAL rval;
 	const char *p;
 
 again:	
@@ -147,9 +130,6 @@ again:
 			t->tok.type = T_TRUE;
 		} else if (p[0] == '#' && p[1] == 'f' && p[2] == '\0') {
 			t->tok.type = T_FALSE;
-		} else if (convert_to_int(p, &ival)) {
-			t->tok.type = T_INTEGER;
-			t->tok.value.integer = ival;
 		} else if (convert_to_real(p, &rval)) {
 			t->tok.type = T_REAL;
 			t->tok.value.real = rval;

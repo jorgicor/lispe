@@ -2,11 +2,6 @@
 
 (define else #t)
 
-; These are not throwing error on type...
-; And this is not correct... Floating numbers can be marked exact with #e1.0
-(define (exact? n)
-  (integer? n))
-
 (define (inexact? n)
   (real? n))
 
@@ -222,5 +217,9 @@
       (apply count-iter (list (+ i 1) n))))
   (count-iter 0 n))
 
-(define d (stream-filter is-sqrt integers))
+;(define d (stream-filter is-sqrt integers))
 
+(define (check i n)
+  (if (= n (+ n 1))
+    i
+    (check (+ i 1) (+ n 1))))

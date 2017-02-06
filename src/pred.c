@@ -46,7 +46,7 @@ int p_integerp(SEXPR e)
 {
 	if (!p_numberp(e))
 		return 0;
-	return number_int(sexpr_number(e));
+	return number_integer(sexpr_number(e));
 }
 
 int p_exactp(SEXPR e)
