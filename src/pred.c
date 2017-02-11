@@ -36,6 +36,13 @@ int p_numberp(SEXPR e)
 	return sexpr_type(e) == SEXPR_NUMBER;
 }
 
+int p_complexp(SEXPR e)
+{
+	if (!p_numberp(e))
+	       return 0;
+	return number_complex(sexpr_number(e));
+}
+
 int p_realp(SEXPR e)
 {
 	if (!p_numberp(e))

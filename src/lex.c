@@ -72,10 +72,53 @@ static int convert_to_real(const char *p, real_t *result)
 	return 1;
 }
 
+static int convert_to_complex(const char *p, complex_t *result)
+{
+	char *ep;
+	real_t realp;
+	real_t imagp;
+
+	errno = 0;
+	imagp = 0;
+	realp = r_strtod(p, &ep);
+	if (p == ep) {
+		realp = 0;
+		if (*p == '+' && p[1] == 'i') {
+			imagp = 1;
+			ep += 2;
+		} else if (*p == '-' && p[1] == 'i') {
+			imagp = -1;
+			ep += 2;
+		}
+	} else if (*ep == 'i') {
+		imagp = realp;
+		realp = 0;
+		ep++;
+	} else if (*ep == '+' || *ep == '-') {
+		p = ep;
+		imagp = r_strtod(p, &ep);
+		if (p == ep) {
+			imagp = (*p == '+') ? 1 : -1;
+			ep++;
+		}
+		if (*ep != 'i') {
+			return 0;
+		}
+		ep++;
+	}
+
+	if (*ep != '\0') {
+		return 0;
+	}
+
+	*result = realp + imagp * I;
+	return 1;
+}
+
 struct token *pop_token(struct tokenizer *t)
 {
 	int c, i;
-	real_t rval;
+	complex_t vcomplex;
 	const char *p;
 
 again:	
@@ -130,54 +173,18 @@ again:
 			t->tok.type = T_TRUE;
 		} else if (p[0] == '#' && p[1] == 'f' && p[2] == '\0') {
 			t->tok.type = T_FALSE;
-		} else if (convert_to_real(p, &rval)) {
-			t->tok.type = T_REAL;
-			t->tok.value.real = rval;
+		} else if (convert_to_complex(p, &vcomplex)) {
+			if (cimag(vcomplex) != 0) {
+				t->tok.type = T_COMPLEX;
+				t->tok.value.vcomplex = vcomplex;
+			} else {
+				t->tok.type = T_REAL;
+				t->tok.value.vreal = creal(vcomplex);
+			}
 		} else {
 			t->tok.type = T_ATOM;
 		}
 	}
-#if 0
-	} else if (c == '#') {
-		c = getc_from_channel(t->in);
-		if (c == 't') {
-			t->tok.type = T_TRUE;
-		} else if (c =='f') {
-			t->tok.type = T_FALSE;
-		} else {
-			t->tok.type = '#';
-			t->peekc = c;
-		}
-	} else if (strchr("()[].'", c) != NULL) {
-		t->tok.type = c;
-	} else if (is_id_start(c)) {
-		t->tok.type = T_ATOM;
-		i = 0;
-		while (is_id_next(c)) {
-			if (i < MAX_NAME) {
-				t->tok.value.atom.name[i++] = c;
-			}
-			c = getc_from_channel(t->in);
-		}
-		t->tok.value.atom.len = i;
-		t->peekc = c;
-	} else if (isdigit(c)) {
-		t->tok.type = T_INTEGER;
-		n = 0;
-		while (c == '0') {
-			c = getc_from_channel(t->in);
-		}
-		while (isdigit(c)) {
-			n = n * 10 + (c - '0');
-			c = getc_from_channel(t->in);
-		}
-		t->tok.value.integer = n;
-		t->peekc = c;
-	} else {
-		/* skip wrong token for now */
-		goto again;
-	}
-#endif
 
 	return &t->tok;
 }

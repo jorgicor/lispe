@@ -23,8 +23,9 @@ static void delay(void);
 static void cons_stream(void);
 static void pairp(void);
 static void numberp(void);
-static void integerp(void);
+static void complexp(void);
 static void realp(void);
+static void integerp(void);
 static void exactp(void);
 static void symbolp(void);
 static void eqp(void);
@@ -70,6 +71,7 @@ struct builtin {
 	{ "apply", &apply },
 	{ "car",  &car },
 	{ "cdr", &cdr },
+	{ "complex?", &complexp },
 	{ "cons", &cons },
 	{ "-", &difference },
 	{ "=", &equal_numbersp },
@@ -561,14 +563,19 @@ static void numberp(void)
 	s_val = p_numberp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-static void integerp(void)
+static void complexp(void)
 {
-	s_val = p_integerp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+	s_val = p_complexp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static void realp(void)
 {
 	s_val = p_realp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
+}
+
+static void integerp(void)
+{
+	s_val = p_integerp(p_car(s_args)) ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
 static void exactp(void)
@@ -714,12 +721,8 @@ static void gc(void)
 int main(int argc, char* argv[])
 {
 	int errorc;
-	double complex dc;
 
 	printf("lispe minimal lisp 1.0\n\n");
-
-	printf("size of double complex %u\n", sizeof(dc));
-	
 
 	cells_init();
 	cellmark_init();

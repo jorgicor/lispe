@@ -1,6 +1,7 @@
 #include "cfg.h"
 #include "sexpr.h"
 #include "common.h"
+#include "err.h"
 #include <assert.h>
 
 SEXPR make_environment(SEXPR parent)

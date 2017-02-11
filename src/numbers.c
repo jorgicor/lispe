@@ -144,11 +144,23 @@ void build_real_number(struct number *n, real_t d)
 	n->val.vreal = d;
 }
 
+void build_complex_number(struct number *n, complex_t d)
+{
+	n->type = NUM_COMPLEX;
+	n->val.vcomplex = d;
+}
+
 void print_number(struct number *n)
 {
+	char sign;
+
 	switch (n->type) {
 	case NUM_REAL:
 		printf("%g", n->val.vreal);
+		break;
+	case NUM_COMPLEX:
+		printf("%g%+gi", creal(n->val.vcomplex),
+			       	 cimag(n->val.vcomplex));
 		break;
 	}
 }
@@ -200,25 +212,25 @@ static void div_real(struct number *a, struct number *b, struct number *r)
 static void add_complex(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_COMPLEX;
-	r->val.vreal = a->val.vreal + b->val.vreal;
+	r->val.vcomplex = a->val.vcomplex + b->val.vcomplex;
 }
 
 static void sub_complex(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_COMPLEX;
-	r->val.vreal = a->val.vreal - b->val.vreal;
+	r->val.vcomplex = a->val.vcomplex - b->val.vcomplex;
 }
 
 static void mul_complex(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_COMPLEX;
-	r->val.vreal = a->val.vreal * b->val.vreal;
+	r->val.vcomplex = a->val.vcomplex * b->val.vcomplex;
 }
 
 static void div_complex(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_COMPLEX;
-	r->val.vreal = a->val.vreal / b->val.vreal;
+	r->val.vcomplex = a->val.vcomplex / b->val.vcomplex;
 }
 
 static const arith_fun arith_table[N_NUM_TYPES][N_NUM_ARITH_OPS] = {

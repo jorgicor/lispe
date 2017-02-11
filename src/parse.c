@@ -186,7 +186,11 @@ static SEXPR parse_sexpr(struct parser *p, int *errorc)
 				    tok->value.atom.len);
 		return pop_n_ret(p, sexpr);
 	} else if (tok->type == T_REAL) {
-		build_real_number(&n, tok->value.real);
+		build_real_number(&n, tok->value.vreal);
+		sexpr = make_number(&n);
+		return pop_n_ret(p, sexpr);
+	} else if (tok->type == T_COMPLEX) {
+		build_complex_number(&n, tok->value.vcomplex);
 		sexpr = make_number(&n);
 		return pop_n_ret(p, sexpr);
 	} else if (tok->type == '\'') {

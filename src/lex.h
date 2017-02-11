@@ -22,6 +22,7 @@ enum {
 	T_ATOM = 1024,
 	T_INTEGER,
 	T_REAL,
+	T_COMPLEX,
 	T_TRUE,
 	T_FALSE
 };
@@ -37,7 +38,8 @@ struct token {
 			char name[MAX_NAME];
 			int len;
 		} atom;
-		real_t real;
+		real_t vreal;
+		complex_t vcomplex;
 	} value;
 };
 

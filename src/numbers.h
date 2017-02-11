@@ -35,6 +35,7 @@ enum {
 };
 
 void build_real_number(struct number *n, real_t f);
+void build_complex_number(struct number *n, complex_t d);
 void print_number(struct number *n);
 void apply_arith_op(int op, struct number *a, struct number *b,
 	       	    struct number *r);
