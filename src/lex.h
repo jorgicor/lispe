@@ -37,7 +37,7 @@ struct token {
 			char name[MAX_NAME];
 			int len;
 		} atom;
-		REAL real;
+		real_t real;
 	} value;
 };
 

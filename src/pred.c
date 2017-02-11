@@ -5,6 +5,7 @@
 #include "cells.h"
 #include "numbers.h"
 #include "common.h"
+#include "err.h"
 #include <assert.h>
 #ifndef STDIO_H
 #include <stdio.h>

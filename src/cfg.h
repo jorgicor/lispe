@@ -6,15 +6,26 @@
 #include "config.h"
 #endif
 
-#define REAL double
+#ifndef COMPLEX_H
+#define COMPLEX_H
+#include <complex.h>
+#endif
 
-#if REAL==double
+#define USE_DOUBLE
+
+#ifdef USE_DOUBLE
+
+typedef double real_t;
+typedef double complex complex_t;
 
 #define r_modf modf
 #define r_strtod strtod
 #define REAL_MAX_INT 9007199254740991
 
-#elif REAL==float
+#else
+
+typedef float real_t;
+typedef float complex complex_t;
 
 #define r_modf modff
 #define r_strtod strtof

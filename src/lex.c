@@ -59,10 +59,10 @@ static int separator(int c)
 }
 
 /* Returns true if the conversion was performed */
-static int convert_to_real(const char *p, REAL *result)
+static int convert_to_real(const char *p, real_t *result)
 {
 	char *ep;
-	REAL nreal;
+	real_t nreal;
 
 	errno = 0;
 	nreal = r_strtod(p, &ep);
@@ -75,7 +75,7 @@ static int convert_to_real(const char *p, REAL *result)
 struct token *pop_token(struct tokenizer *t)
 {
 	int c, i;
-	REAL rval;
+	real_t rval;
 	const char *p;
 
 again:	

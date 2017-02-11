@@ -80,7 +80,6 @@ void extend_environment(void);
 
 /* lispe.c */
 
-void throw_err(const char *s);
 void apply_builtin_function(int i);
 void apply_builtin_special(int i);
 const char *builtin_function_name(int i);

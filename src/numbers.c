@@ -2,6 +2,7 @@
 #include "cbase.h"
 #include "numbers.h"
 #include "gc.h"
+#include "err.h"
 #include <assert.h>
 #ifndef STDIO_H
 #include <stdio.h>
@@ -128,6 +129,7 @@ void init_numbers(void)
 
 enum {
 	NUM_REAL,
+	NUM_COMPLEX,
        	N_NUM_TYPES,
 };
 
@@ -136,25 +138,32 @@ static int number_type(struct number *n)
 	return n->type;
 }
 
-void build_real_number(struct number *n, REAL d)
+void build_real_number(struct number *n, real_t d)
 {
 	n->type = NUM_REAL;
-	n->val.real = d;
+	n->val.vreal = d;
 }
 
 void print_number(struct number *n)
 {
 	switch (n->type) {
 	case NUM_REAL:
-		printf("%g", n->val.real);
+		printf("%g", n->val.vreal);
 		break;
 	}
 }
 
 typedef void (*coer_fun)(struct number *a, struct number *r);
 
+static void coer_real_complex(struct number *a, struct number *r)
+{
+	r->type = NUM_COMPLEX;
+	r->val.vcomplex = a->val.vreal;
+}
+
 static const coer_fun coercion_table[N_NUM_TYPES][N_NUM_TYPES] = {
-	{ NULL },
+	{ NULL, coer_real_complex },
+	{ NULL, NULL },
 };
 
 static coer_fun get_coercion_fun(int typea, int typeb)
@@ -167,29 +176,54 @@ typedef void (*arith_fun)(struct number *, struct number *, struct number *);
 static void add_real(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_REAL;
-	r->val.real = a->val.real + b->val.real;
+	r->val.vreal = a->val.vreal + b->val.vreal;
 }
 
 static void sub_real(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_REAL;
-	r->val.real = a->val.real - b->val.real;
+	r->val.vreal = a->val.vreal - b->val.vreal;
 }
 
 static void mul_real(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_REAL;
-	r->val.real = a->val.real * b->val.real;
+	r->val.vreal = a->val.vreal * b->val.vreal;
 }
 
 static void div_real(struct number *a, struct number *b, struct number *r)
 {
 	r->type = NUM_REAL;
-	r->val.real = a->val.real / b->val.real;
+	r->val.vreal = a->val.vreal / b->val.vreal;
+}
+
+static void add_complex(struct number *a, struct number *b, struct number *r)
+{
+	r->type = NUM_COMPLEX;
+	r->val.vreal = a->val.vreal + b->val.vreal;
+}
+
+static void sub_complex(struct number *a, struct number *b, struct number *r)
+{
+	r->type = NUM_COMPLEX;
+	r->val.vreal = a->val.vreal - b->val.vreal;
+}
+
+static void mul_complex(struct number *a, struct number *b, struct number *r)
+{
+	r->type = NUM_COMPLEX;
+	r->val.vreal = a->val.vreal * b->val.vreal;
+}
+
+static void div_complex(struct number *a, struct number *b, struct number *r)
+{
+	r->type = NUM_COMPLEX;
+	r->val.vreal = a->val.vreal / b->val.vreal;
 }
 
 static const arith_fun arith_table[N_NUM_TYPES][N_NUM_ARITH_OPS] = {
 	{ add_real, sub_real, mul_real, div_real },
+	{ add_complex, sub_complex, mul_complex, div_complex },
 };
 
 static arith_fun get_arith_fun(int type, int op)
@@ -227,31 +261,68 @@ typedef int (*logic_fun)(struct number *, struct number *);
 
 static int equal_real(struct number *a, struct number *b)
 {
-	return a->val.real == b->val.real;
+	return a->val.vreal == b->val.vreal;
 }
 
 static int gt_real(struct number *a, struct number *b)
 {
-	return a->val.real > b->val.real;
+	return a->val.vreal > b->val.vreal;
 }
 
 static int lt_real(struct number *a, struct number *b)
 {
-	return a->val.real < b->val.real;
+	return a->val.vreal < b->val.vreal;
 }
 
 static int ge_real(struct number *a, struct number *b)
 {
-	return a->val.real >= b->val.real;
+	return a->val.vreal >= b->val.vreal;
 }
 
 static int le_real(struct number *a, struct number *b)
 {
-	return a->val.real <= b->val.real;
+	return a->val.vreal <= b->val.vreal;
+}
+
+static int equal_complex(struct number *a, struct number *b)
+{
+	return a->val.vcomplex == b->val.vcomplex;
+}
+
+static void check_reals(struct number *a, struct number *b)
+{
+	if (!number_real(a) || !number_real(b)) {
+		throw_err("cannot apply logic operator to complex numbers");
+	}
+}
+
+static int gt_complex(struct number *a, struct number *b)
+{
+	check_reals(a, b);
+	return creal(a->val.vcomplex) > creal(b->val.vcomplex);
+}
+
+static int lt_complex(struct number *a, struct number *b)
+{
+	check_reals(a, b);
+	return creal(a->val.vcomplex) < creal(b->val.vcomplex);
+}
+
+static int ge_complex(struct number *a, struct number *b)
+{
+	check_reals(a, b);
+	return creal(a->val.vcomplex) >= creal(b->val.vcomplex);
+}
+
+static int le_complex(struct number *a, struct number *b)
+{
+	check_reals(a, b);
+	return creal(a->val.vcomplex) <= creal(b->val.vcomplex);
 }
 
 static const logic_fun logic_table[N_NUM_TYPES][N_NUM_LOGIC_OPS] = {
 	{ equal_real, gt_real, lt_real, ge_real, le_real },
+	{ equal_complex, gt_complex, lt_complex, ge_complex, le_complex },
 };
 
 static logic_fun get_logic_fun(int type, int op)
@@ -300,8 +371,9 @@ void copy_number(struct number *src, struct number *dst)
 
 int exact_number(struct number *n)
 {
-	if (number_integer(n) && 
-		(n->val.real > -REAL_MAX_INT && n->val.real < REAL_MAX_INT))
+	if (number_integer(n) &&
+		creal(n->val.vreal) > -REAL_MAX_INT &&
+		creal(n->val.vreal) < REAL_MAX_INT)
        	{
 		return 1;
 	} else {
@@ -311,14 +383,34 @@ int exact_number(struct number *n)
 
 int number_integer(struct number *n)
 {
-	REAL int_part, frac_part;
+	real_t int_part, frac_part;
+	real_t v;
 
-	frac_part = r_modf(n->val.real, &int_part);
-	return frac_part == .0f;
+	if (number_type(n) == NUM_COMPLEX) {
+		if (cimag(n->val.vcomplex) != 0) {
+			return 0;
+		} else {
+			v = creal(n->val.vcomplex);
+		}
+	} else {
+		v = n->val.vreal;
+	}
+
+	frac_part = r_modf(v, &int_part);
+	return frac_part == 0;
 }
 
 /* Returns true if a number is mathematically a real. */
 int number_real(struct number *n)
+{
+	if (number_type(n) == NUM_COMPLEX && cimag(n->val.vcomplex) != 0) {
+		return 0;
+	}
+
+	return 1;
+}
+
+int number_complex(struct number *n)
 {
 	return 1;
 }

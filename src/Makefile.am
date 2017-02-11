@@ -2,6 +2,7 @@ AM_CFLAGS = $(WARN_CFLAGS)
 bin_PROGRAMS = lispe
 lispe_CFLAGS = $(AM_CFLAGS)
 lispe_SOURCES = lispe.c cfg.h cbase.h gc.h common.h \
+		err.h err.c \
 		cellmark.c cellmark.h \
 		cells.c cells.h \
 		lex.c lex.h \

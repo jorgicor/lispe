@@ -9,6 +9,7 @@
 #include "numbers.h"
 #include "symbols.h"
 #include "common.h"
+#include "err.h"
 #include "lex.h"
 #include <assert.h>
 #ifndef STDIO_H
@@ -16,8 +17,7 @@
 #endif
 #include <stdlib.h>
 #include <string.h>
-#include <setjmp.h>
-#include <tgmath.h>
+#include <complex.h>
 
 static void delay(void);
 static void cons_stream(void);
@@ -58,21 +58,6 @@ static void eval(void);
 static void apply(void);
 static void gc(void);
 static void quit(void);
-
-/*********************************************************
- * Exceptions.
- *********************************************************/
-
-static jmp_buf buf; 
-
-void throw_err(const char *s)
-{
-	printf("lispe: ** error **\n");
-	if (s) {
-		printf("lispe: %s\n", s);
-	}
-	longjmp(buf, 1);
-}
 
 /*********************************************************/
 
@@ -199,7 +184,7 @@ static void load_init_file(void)
 	int errorc;
 	FILE *fp;
 
-	if (setjmp(buf)) {
+	if (setjmp(s_err_buf)) {
 		printf("lispe: error loading init.lisp\n");
 		clear_stack();
 		goto end;
@@ -729,8 +714,12 @@ static void gc(void)
 int main(int argc, char* argv[])
 {
 	int errorc;
+	double complex dc;
 
 	printf("lispe minimal lisp 1.0\n\n");
+
+	printf("size of double complex %u\n", sizeof(dc));
+	
 
 	cells_init();
 	cellmark_init();
@@ -746,7 +735,7 @@ int main(int argc, char* argv[])
 	/* REPL */
 	for (;;) {
 		printf("lispe> ");
-		if (!setjmp(buf)) {
+		if (!setjmp(s_err_buf)) {
 			s_expr = read(&errorc);
 			if (errorc == ERRORC_EOF) {
 				break;

@@ -15,7 +15,8 @@
 struct number {
 	int type;
 	union {
-		REAL real;
+		real_t vreal;
+		complex_t vcomplex;
 	} val;
 };
 
@@ -33,7 +34,7 @@ enum {
        	N_NUM_LOGIC_OPS,
 };
 
-void build_real_number(struct number *n, REAL f);
+void build_real_number(struct number *n, real_t f);
 void print_number(struct number *n);
 void apply_arith_op(int op, struct number *a, struct number *b,
 	       	    struct number *r);
@@ -43,6 +44,7 @@ void copy_number(struct number *src, struct number *dst);
 int exact_number(struct number *n);
 int number_integer(struct number *n);
 int number_real(struct number *n);
+int number_complex(struct number *n);
 
 int install_number(struct number *n);
 struct number *get_number(int i);
