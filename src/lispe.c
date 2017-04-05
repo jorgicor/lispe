@@ -185,16 +185,24 @@ static void load_init_file(void)
 	struct parser p;
 	int errorc;
 	FILE *fp;
+	static const char *fpath = "init.scm";
 
 	if (setjmp(s_err_buf)) {
-		printf("lispe: error loading init.scm\n");
+		printf("lispe: error loading %s\n", fpath);
 		clear_stack();
 		goto end;
 	}
 
-	fp = fopen("init.scm", "r");
-	if (!fp)
-		return;
+	fp = fopen(fpath, "r");
+	if (!fp) {
+		printf("[%s not found]\n", fpath);
+		fpath = PP_DATADIR "/init.scm";
+		fp = fopen(fpath, "r");
+		if (!fp) {
+			printf("[%s not found]\n", fpath);
+			return;
+		}
+	}
 
 	tokenize(read_file(&ic, fp), &t);
 	do {
@@ -206,9 +214,9 @@ static void load_init_file(void)
 	} while (errorc == ERRORC_OK);
 
 	if (errorc == ERRORC_SYNTAX) {
-		printf("lispe: syntax error on init.scm\n");
+		printf("lispe: syntax error on %s\n", fpath);
 	} else {
-		printf("[init.scm loaded ok]\n");
+		printf("[%s loaded ok]\n", fpath);
 	}
 
 end:	fclose(fp);

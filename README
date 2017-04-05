@@ -26,3 +26,39 @@ the `configure` script. Use:
 to generate the required files. You will need *GNU autoconf* and *GNU
 automake*.
 
+
+Compiling from the source distribution
+--------------------------------------
+
+After having bootstrapped the project, and if you are building on a Unix
+environment (this includes *Cygwin* on *Windows*), you can find detailed
+instructions in the file `INSTALL`.
+
+Normally, after installing from source, you can find this on your system:
+
+~~~
+/usr/local/bin/lispe                    The program executable.
+/usr/local/share/doc/lispe/COPYING      License.
+/usr/local/share/doc/lispe/README       This file.
+/usr/local/share/doc/lispe/NEWS         What's new in this version.
+/usr/local/share/doc/lispe/INSTALL      How to compile, install and uninstall.
+/usr/local/share/doc/lispe/AUTHORS      Authors.
+/usr/local/share/lispe/init.scm         File with base Scheme definitions.
+~~~
+
+If you are installing the program using your OS distribution package system,
+these folders will probably be different.  Try changing `/usr/local` to
+`/usr`.
+
+Hacking
+=======
+
+If you don't want to install the program and only want to play with it, you
+can run `./configure && make` and run the program from the `src` folder.
+
+Note however that the program first tries to load a file named `init.scm` with
+Scheme definitions from the current directory; if not found, it will try to
+load it from `/usr/local/share/lispe/init.scm` (or an equivalent path). This
+file is in the folder `data/` on the source tree, so remember to copy it to
+wherever you run `lispe` to be able to load it.
+
