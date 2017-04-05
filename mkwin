@@ -53,18 +53,16 @@ make_zip () {
 	mkdir $lispe_wname
 	cd $lispe_wname
 	cp ../$lispe_xname/src/lispe.exe .
-	groff -m man -T html ../$lispe_xname/doc/lispe.1 > lispe.html
+	# groff -m man -T html ../$lispe_xname/doc/lispe.1 > lispe.html
 	cp ../$lispe_xname/COPYING copying.txt
-	cp ../$lispe_xname/README.md readme.txt
-	cp ../$lispe_xname/CHANGELOG.md changelog.txt
+	cp ../$lispe_xname/README readme.txt
+	cp ../$lispe_xname/NEWS news.txt
 	for i in *.txt
 	do
 		sed $sedmask $i > tmp.txt
 		rm $i
 		mv tmp.txt $i
 	done
-	sed -i 's,http://cryptomuseum.com/crypto/enigma/m4/index.htm,<a href="http://cryptomuseum.com/crypto/enigma/m4/index.htm">http://cryptomuseum.com/crypto/enigma/m4/index.htm</a>,' lispe.html
-	sed -i 's,http://jorgicor.sdfeu.org/lispe,<a href="http://jorgicor.sdfeu.org/lispe">http://jorgicor.sdfeu.org/lispe</a>,' lispe.html
 	i686-w64-mingw32-strip lispe.exe
 	cd ..
 	zip -r $lispe_wname.zip $lispe_wname

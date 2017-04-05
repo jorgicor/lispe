@@ -1,1 +1,28 @@
-See README.md
+lispe - LISP implementation
+===========================
+
+`lispe` is a LISP interpreter that accepts a subset of Scheme. lispe is WORK
+IN PROGRESS.
+
+lispe is free software. See the file `COPYING` for copying conditions.
+
+Copyright (c) 2017 Jorge Giner Cordero
+
+Home page: http://jorgicor.sdfeu.org
+Send bug reports to: jorge.giner@hotmail.com
+
+Compiling
+=========
+
+Getting the code from revision control
+--------------------------------------
+
+If you cloned the project from a revision control system (i.e. GitHub), you
+will need first to use the GNU autotools to generate some files, in particular,
+the `configure` script. Use:
+
+    $ ./bootstrap
+
+to generate the required files. You will need *GNU autoconf* and *GNU
+automake*.
+

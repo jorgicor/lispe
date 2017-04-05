@@ -20,4 +20,4 @@ stamp-h1
 /doc/*.html
 /doc/*.1
 /src/.deps
-/src/aenig4
+/src/lispe

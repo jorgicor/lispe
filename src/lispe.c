@@ -187,7 +187,7 @@ static void load_init_file(void)
 	FILE *fp;
 
 	if (setjmp(s_err_buf)) {
-		printf("lispe: error loading init.lisp\n");
+		printf("lispe: error loading init.scm\n");
 		clear_stack();
 		goto end;
 	}
@@ -206,9 +206,9 @@ static void load_init_file(void)
 	} while (errorc == ERRORC_OK);
 
 	if (errorc == ERRORC_SYNTAX) {
-		printf("lispe: syntax error on init.lisp\n");
+		printf("lispe: syntax error on init.scm\n");
 	} else {
-		printf("[init.lisp loaded ok]\n");
+		printf("[init.scm loaded ok]\n");
 	}
 
 end:	fclose(fp);
