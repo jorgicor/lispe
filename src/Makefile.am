@@ -3,13 +3,11 @@
 # ===========================================================================
 
 AM_CFLAGS = $(WARN_CFLAGS)
+AM_CPPFLAGS = -DPP_DATADIR='"$(pkgdatadir)"'
 
 bin_PROGRAMS = lispe
-
-lispe_CFLAGS = $(AM_CFLAGS)
-
-lispe_CPPFLAGS = -DPP_DATADIR='"$(pkgdatadir)"'
-
+# lispe_CFLAGS = $(AM_CFLAGS)
+# lispe_CPPFLAGS = -DPP_DATADIR='"$(pkgdatadir)"'
 lispe_SOURCES = lispe.c cfg.h cbase.h gc.h common.h \
 		err.h err.c \
 		cellmark.c cellmark.h \
