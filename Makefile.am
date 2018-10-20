@@ -1,3 +1,7 @@
+# ===========================================================================
+# lispe, Scheme interpreter.
+# ===========================================================================
+
 SUBDIRS = src
 dist_doc_DATA = AUTHORS README NEWS COPYING
 dist_noinst_DATA = README.md

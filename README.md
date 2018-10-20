@@ -6,7 +6,3 @@ IN PROGRESS**.
 
 lispe is free software. See the file `COPYING` for copying conditions.
 
-Copyright (c) 2017 Jorge Giner Cordero
-
-Home page: http://jorgicor.sdfeu.org
-

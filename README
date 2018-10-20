@@ -6,10 +6,7 @@ IN PROGRESS.
 
 lispe is free software. See the file `COPYING` for copying conditions.
 
-Copyright (c) 2017 Jorge Giner Cordero
-
-Home page: http://jorgicor.sdfeu.org
-Send bug reports to: jorge.giner@hotmail.com
+GitHub: https://github.com/jorgicor/lispe
 
 Compiling
 =========
@@ -25,7 +22,6 @@ the `configure` script. Use:
 
 to generate the required files. You will need *GNU autoconf* and *GNU
 automake*.
-
 
 Compiling from the source distribution
 --------------------------------------

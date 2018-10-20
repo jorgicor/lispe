@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# ===========================================================================
+# lispe, Scheme interpreter.
+# ===========================================================================
+
 # This script is used by the author to make the Windows version.
 
 case $# in
@@ -29,7 +33,7 @@ show_menu () {
 download_src () {
 	if [ ! -f $lispe_targz ]
 	then
-		wget -c http://jorgicor.sdfeu.org/lispe/$lispe_targz
+		wget -c https://jorgicor.niobe.org/lispe/$lispe_targz
 		if [ $? -ne 0 ]
 		then
 			echo "Error downloading $lispe_targz"

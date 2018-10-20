@@ -1,11 +1,15 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+# ===========================================================================
+# lispe, Scheme interpreter.
+# ===========================================================================
+
 AC_INIT([lispe],
 	[0.99],
 	[jorge.giner@hotmail.com],
 	lispe,
-	[http://jorgicor.sdfeu.org/lispe])
+	[https://jorgicor.niobe.org/lispe])
 
 AC_CONFIG_MACRO_DIR([m4])
 
